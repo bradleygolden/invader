@@ -146,7 +146,9 @@ defmodule InvaderWeb.MissionDetailComponent do
                           >{@live_output}</pre>
                         </div>
                       <% wave.output -> %>
-                        <pre class="text-xs text-green-500 bg-black p-2 rounded overflow-x-auto max-h-48 overflow-y-auto font-mono whitespace-pre-wrap">{wave.output}</pre>
+                        <div class="bg-black p-3 rounded overflow-x-auto max-h-48 overflow-y-auto markdown-content">
+                          {render_markdown(wave.output)}
+                        </div>
                       <% wave.id == @running_wave_id -> %>
                         <p class="text-green-600 text-xs flex items-center gap-2">
                           <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -291,4 +293,23 @@ defmodule InvaderWeb.MissionDetailComponent do
   defp format_checkpoint_time(datetime) do
     Calendar.strftime(datetime, "%H:%M:%S")
   end
+
+  defp render_markdown(text) when is_binary(text) do
+    options = [
+      extension: [
+        strikethrough: true,
+        table: true,
+        tasklist: true
+      ],
+      render: [
+        unsafe: true
+      ]
+    ]
+
+    text
+    |> MDEx.to_html!(options)
+    |> Phoenix.HTML.raw()
+  end
+
+  defp render_markdown(_), do: ""
 end

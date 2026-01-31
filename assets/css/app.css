@@ -430,3 +430,126 @@ button {
   85% { opacity: 1; transform: translate(-50%, 0); }
   100% { opacity: 0; transform: translate(-50%, -10px); }
 }
+
+/* Markdown content styling */
+.markdown-content {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--si-green);
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  color: var(--si-cyan);
+  text-shadow: 0 0 5px var(--si-cyan);
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  font-weight: normal;
+}
+
+.markdown-content h1 { font-size: 14px; }
+.markdown-content h2 { font-size: 12px; }
+.markdown-content h3 { font-size: 11px; }
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 { font-size: 10px; }
+
+.markdown-content p {
+  margin-bottom: 1em;
+}
+
+.markdown-content strong,
+.markdown-content b {
+  color: var(--si-white);
+  text-shadow: 0 0 3px var(--si-white);
+}
+
+.markdown-content em,
+.markdown-content i {
+  color: var(--si-yellow);
+  font-style: normal;
+}
+
+.markdown-content code {
+  background: rgba(0, 255, 255, 0.1);
+  border: 1px solid var(--si-cyan);
+  padding: 0.1em 0.3em;
+  font-size: 9px;
+}
+
+.markdown-content pre {
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid var(--si-cyan);
+  padding: 1em;
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 1em 0;
+  padding-left: 1.5em;
+}
+
+.markdown-content li {
+  margin-bottom: 0.5em;
+}
+
+.markdown-content ul li::marker {
+  color: var(--si-magenta);
+}
+
+.markdown-content ol li::marker {
+  color: var(--si-yellow);
+}
+
+.markdown-content a {
+  color: var(--si-cyan);
+  text-decoration: underline;
+}
+
+.markdown-content a:hover {
+  color: var(--si-white);
+  text-shadow: 0 0 5px var(--si-cyan);
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid var(--si-magenta);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: var(--si-yellow);
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 2px dashed var(--si-cyan);
+  margin: 1.5em 0;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--si-cyan);
+  padding: 0.5em;
+}
+
+.markdown-content th {
+  background: rgba(0, 255, 255, 0.1);
+  color: var(--si-cyan);
+}

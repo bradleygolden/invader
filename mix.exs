@@ -85,7 +85,8 @@ defmodule Invader.MixProject do
       {:bandit, "~> 1.5"},
       {:sprites, git: "https://github.com/superfly/sprites-ex.git"},
       {:crontab, "~> 1.1"},
-      {:tz, "~> 0.28"}
+      {:tz, "~> 0.28"},
+      {:mdex, "~> 0.11"}
     ]
   end
 
