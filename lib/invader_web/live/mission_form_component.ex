@@ -6,6 +6,7 @@ defmodule InvaderWeb.MissionFormComponent do
 
   alias Invader.Missions.Mission
   alias Invader.Sprites.Sprite
+  alias Invader.Loadouts.Loadout
   alias Invader.Settings
   alias InvaderWeb.TimezoneHelper
 
@@ -45,6 +46,53 @@ defmodule InvaderWeb.MissionFormComponent do
         <div :if={@action == :edit} class="py-2 border-b border-cyan-800">
           <span class="text-cyan-500 text-[10px]">SPRITE</span>
           <div class="text-white mt-1">{@mission.sprite.name}</div>
+        </div>
+        
+    <!-- Loadout Quick Load -->
+        <div :if={length(@loadout_options) > 0} class="space-y-2">
+          <label class="text-cyan-500 text-[10px] block">QUICK LOAD</label>
+          <div class="flex gap-2">
+            <select
+              id="loadout-select"
+              name="loadout_id"
+              phx-change="select_loadout"
+              phx-target={@myself}
+              class="flex-1 bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+            >
+              <option value="">-- SELECT LOADOUT --</option>
+              <%= for {name, id} <- @loadout_options do %>
+                <option value={id}>{name}</option>
+              <% end %>
+            </select>
+            <button
+              type="button"
+              phx-click="manage_loadouts"
+              phx-target={@myself}
+              class="arcade-btn p-2 border-cyan-800 text-cyan-600 hover:border-cyan-400 hover:text-cyan-400"
+              title="Manage loadouts"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                class="w-4 h-4 fill-current"
+                style="image-rendering: pixelated;"
+              >
+                <rect x="6" y="0" width="4" height="2" />
+                <rect x="6" y="14" width="4" height="2" />
+                <rect x="0" y="6" width="2" height="4" />
+                <rect x="14" y="6" width="2" height="4" />
+                <rect x="2" y="2" width="2" height="2" />
+                <rect x="12" y="2" width="2" height="2" />
+                <rect x="2" y="12" width="2" height="2" />
+                <rect x="12" y="12" width="2" height="2" />
+                <rect x="4" y="4" width="8" height="8" />
+                <rect x="6" y="6" width="4" height="4" class="fill-black" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div :if={length(@loadout_options) == 0} class="text-cyan-700 text-[10px]">
+          No loadouts saved yet. Create one below!
         </div>
         
     <!-- Prompt Type Toggle -->
@@ -91,6 +139,31 @@ defmodule InvaderWeb.MissionFormComponent do
               rows="4"
               class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none resize-none"
             >{@form[:prompt].value}</textarea>
+          </div>
+          
+    <!-- Save as Loadout -->
+          <div class="pt-2 border-t border-cyan-900">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={@save_as_loadout}
+                phx-click="toggle_save_as_loadout"
+                phx-target={@myself}
+                class="w-4 h-4 bg-black border-2 border-cyan-700 text-cyan-400 focus:ring-cyan-500"
+              />
+              <span class="text-cyan-500 text-[10px]">SAVE AS LOADOUT</span>
+            </label>
+            <div :if={@save_as_loadout} class="mt-2">
+              <input
+                type="text"
+                name="loadout_name"
+                value={@loadout_name}
+                phx-change="update_loadout_name"
+                phx-target={@myself}
+                placeholder="Loadout name..."
+                class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+              />
+            </div>
           </div>
         </div>
         
@@ -354,6 +427,13 @@ defmodule InvaderWeb.MissionFormComponent do
         {sprite.name, sprite.id}
       end)
 
+    loadouts = Loadout.list!()
+
+    loadout_options =
+      Enum.map(loadouts, fn loadout ->
+        {loadout.name, loadout.id}
+      end)
+
     form =
       if action == :new do
         AshPhoenix.Form.for_create(Mission, :create, as: "mission")
@@ -386,16 +466,71 @@ defmodule InvaderWeb.MissionFormComponent do
      socket
      |> assign(assigns)
      |> assign(:sprite_options, sprite_options)
+     |> assign(:loadout_options, loadout_options)
      |> assign(:prompt_mode, prompt_mode)
      |> assign(:schedule_enabled, schedule_enabled)
      |> assign(:schedule_type, schedule_type)
      |> assign(:schedule_days, schedule_days)
+     |> assign(:save_as_loadout, false)
+     |> assign(:loadout_name, "")
      |> assign(:form, to_form(form))}
   end
 
   @impl true
   def handle_event("set_prompt_mode", %{"mode" => mode}, socket) do
     {:noreply, assign(socket, :prompt_mode, String.to_existing_atom(mode))}
+  end
+
+  @impl true
+  def handle_event("select_loadout", params, socket) do
+    loadout_id = Map.get(params, "loadout_id", "")
+
+    if loadout_id != "" do
+      case Loadout.get(loadout_id) do
+        {:ok, loadout} ->
+          # Determine mode and update form based on loadout type
+          {prompt_mode, form_updates} =
+            cond do
+              loadout.content && loadout.content != "" ->
+                {:inline, %{"prompt" => loadout.content, "prompt_path" => ""}}
+
+              loadout.file_path && loadout.file_path != "" ->
+                {:path, %{"prompt_path" => loadout.file_path, "prompt" => ""}}
+
+              true ->
+                {socket.assigns.prompt_mode, %{}}
+            end
+
+          # Update the form with loaded values
+          form = AshPhoenix.Form.validate(socket.assigns.form.source, form_updates)
+
+          {:noreply,
+           socket
+           |> assign(:prompt_mode, prompt_mode)
+           |> assign(:form, to_form(form))}
+
+        {:error, _} ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("toggle_save_as_loadout", _params, socket) do
+    {:noreply, assign(socket, :save_as_loadout, !socket.assigns.save_as_loadout)}
+  end
+
+  @impl true
+  def handle_event("update_loadout_name", %{"loadout_name" => name}, socket) do
+    {:noreply, assign(socket, :loadout_name, name)}
+  end
+
+  @impl true
+  def handle_event("manage_loadouts", _params, socket) do
+    send(self(), {:open_loadouts_modal})
+    {:noreply, socket}
   end
 
   @impl true
@@ -433,20 +568,47 @@ defmodule InvaderWeb.MissionFormComponent do
   end
 
   @impl true
-  def handle_event("save", %{"mission" => mission_params}, socket) do
+  def handle_event("save", %{"mission" => mission_params} = params, socket) do
     # Merge scheduling state into params
     mission_params = merge_schedule_params(mission_params, socket.assigns)
+
+    # Handle save as loadout if enabled
+    loadout_result =
+      if socket.assigns.save_as_loadout do
+        loadout_name = Map.get(params, "loadout_name", socket.assigns.loadout_name)
+
+        if loadout_name && loadout_name != "" do
+          loadout_params =
+            if socket.assigns.prompt_mode == :inline do
+              %{name: loadout_name, content: Map.get(mission_params, "prompt")}
+            else
+              %{name: loadout_name, file_path: Map.get(mission_params, "prompt_path")}
+            end
+
+          Loadout.create(loadout_params)
+        else
+          {:ok, :skipped}
+        end
+      else
+        {:ok, :skipped}
+      end
 
     case AshPhoenix.Form.submit(socket.assigns.form.source, params: mission_params) do
       {:ok, mission} ->
         notify_parent({:saved, mission})
 
+        flash_message =
+          case loadout_result do
+            {:ok, %Loadout{}} ->
+              "Mission #{(socket.assigns.action == :new && "created") || "updated"} and loadout saved"
+
+            _ ->
+              "Mission #{(socket.assigns.action == :new && "created") || "updated"}"
+          end
+
         {:noreply,
          socket
-         |> put_flash(
-           :info,
-           "Mission #{(socket.assigns.action == :new && "created") || "updated"}"
-         )
+         |> put_flash(:info, flash_message)
          |> push_patch(to: ~p"/")}
 
       {:error, form} ->

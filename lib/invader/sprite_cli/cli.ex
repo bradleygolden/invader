@@ -64,6 +64,106 @@ defmodule Invader.SpriteCli.Cli do
   end
 
   @doc """
+  Executes a command inside a sprite with streaming output.
+  Broadcasts each output chunk to the given PubSub topic.
+
+  Options:
+    - :topic - PubSub topic to broadcast to (required)
+    - :timeout - max time to wait for command completion (default: :infinity)
+    - :mission_id - mission ID to register for cancellation (optional)
+  """
+  def exec_streaming(sprite_name, command, opts) when is_binary(command) do
+    topic = Keyword.fetch!(opts, :topic)
+    timeout = Keyword.get(opts, :timeout, :infinity)
+    mission_id = Keyword.get(opts, :mission_id)
+    sprite = sprite(sprite_name)
+
+    # Redirect stderr to stdout in the command itself
+    full_command = "#{command} 2>&1"
+
+    case Sprites.spawn(sprite, "bash", ["-c", full_command]) do
+      {:ok, cmd} ->
+        # Register the command process for this mission so it can be killed
+        if mission_id do
+          try do
+            Registry.register(Invader.MissionRegistry, {:mission, mission_id}, cmd.pid)
+          rescue
+            # Registry doesn't exist yet, ignore
+            ArgumentError -> :ok
+          end
+        end
+
+        result = collect_and_broadcast(cmd, topic, timeout, [], mission_id)
+
+        # Unregister when done
+        if mission_id do
+          try do
+            Registry.unregister(Invader.MissionRegistry, {:mission, mission_id})
+          rescue
+            # Registry doesn't exist, ignore
+            ArgumentError -> :ok
+          end
+        end
+
+        result
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Kills a running mission's process if it exists.
+  Returns :ok if killed, :not_found if no process was running.
+  """
+  def kill_mission(mission_id) do
+    case Registry.lookup(Invader.MissionRegistry, {:mission, mission_id}) do
+      [{_pid, cmd_pid}] ->
+        # Stop the command GenServer which will close the WebSocket and kill the process
+        GenServer.stop(cmd_pid, :killed, 5000)
+        :ok
+
+      [] ->
+        :not_found
+    end
+  rescue
+    # Process may have already died or Registry doesn't exist
+    ArgumentError -> :not_found
+    _ -> :ok
+  end
+
+  defp collect_and_broadcast(cmd, topic, timeout, acc, mission_id) do
+    cmd_ref = cmd.ref
+
+    receive do
+      {:stdout, %{ref: ^cmd_ref}, data} ->
+        # Broadcast the chunk
+        Phoenix.PubSub.broadcast(Invader.PubSub, topic, {:wave_output, data})
+        collect_and_broadcast(cmd, topic, timeout, [data | acc], mission_id)
+
+      {:stderr, %{ref: ^cmd_ref}, data} ->
+        # Broadcast stderr too
+        Phoenix.PubSub.broadcast(Invader.PubSub, topic, {:wave_output, data})
+        collect_and_broadcast(cmd, topic, timeout, [data | acc], mission_id)
+
+      {:exit, %{ref: ^cmd_ref}, exit_code} ->
+        output = acc |> Enum.reverse() |> IO.iodata_to_binary()
+
+        if exit_code == 0 do
+          {:ok, output}
+        else
+          {:error, {exit_code, output}}
+        end
+
+      {:error, %{ref: ^cmd_ref}, reason} ->
+        {:error, reason}
+    after
+      timeout ->
+        {:error, :timeout}
+    end
+  end
+
+  @doc """
   Opens an interactive console to the sprite (for TTY use).
   Uses spawn with tty: true for interactive sessions.
   """

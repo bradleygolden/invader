@@ -30,11 +30,11 @@ defmodule InvaderWeb.Router do
     live "/missions/:id", DashboardLive, :show_mission
     live "/missions/:id/edit", DashboardLive, :edit_mission
 
-    # Save modal routes
-    live "/saves/:id", DashboardLive, :show_save
-
     # Settings modal route
     live "/settings", DashboardLive, :settings
+
+    # Loadouts modal route
+    live "/loadouts", DashboardLive, :loadouts
   end
 
   # Other scopes may use custom stacks.

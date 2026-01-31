@@ -11,6 +11,8 @@ defmodule Invader.Application do
       InvaderWeb.Telemetry,
       Invader.Repo,
       Invader.Settings,
+      # Registry for tracking running mission processes
+      {Registry, keys: :unique, name: Invader.MissionRegistry},
       {DNSCluster, query: Application.get_env(:invader, :dns_cluster_query) || :ignore},
       {Oban,
        AshOban.config(

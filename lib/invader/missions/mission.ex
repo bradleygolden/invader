@@ -19,11 +19,12 @@ defmodule Invader.Missions.Mission do
 
     transitions do
       transition :start, from: :pending, to: :running
-      transition :pause, from: :running, to: :paused
-      transition :resume, from: :paused, to: :running
+      transition :pause, from: :running, to: :pausing
+      transition :confirm_pause, from: :pausing, to: :paused
+      transition :resume, from: [:paused, :pausing], to: :running
       transition :complete, from: :running, to: :completed
-      transition :fail, from: [:running, :paused], to: :failed
-      transition :abort, from: [:running, :paused, :pending], to: :aborted
+      transition :fail, from: [:running, :paused, :pausing], to: :failed
+      transition :abort, from: [:running, :paused, :pausing, :pending], to: :aborted
       # Allow scheduled missions to restart from terminal states
       transition :run_scheduled, from: [:completed, :failed, :aborted, :pending], to: :running
     end
@@ -50,6 +51,7 @@ defmodule Invader.Missions.Mission do
     define :update, action: :update
     define :start, action: :start
     define :pause, action: :pause
+    define :confirm_pause, action: :confirm_pause
     define :resume, action: :resume
     define :complete, action: :complete
     define :fail, action: :fail
@@ -125,6 +127,11 @@ defmodule Invader.Missions.Mission do
     end
 
     update :pause do
+      change transition_state(:pausing)
+      change set_attribute(:status, :pausing)
+    end
+
+    update :confirm_pause do
       change transition_state(:paused)
       change set_attribute(:status, :paused)
     end
@@ -214,7 +221,7 @@ defmodule Invader.Missions.Mission do
       allow_nil? false
       default :pending
       public? true
-      constraints one_of: [:pending, :running, :paused, :completed, :failed, :aborted]
+      constraints one_of: [:pending, :running, :pausing, :paused, :completed, :failed, :aborted]
     end
 
     attribute :error_message, :string do

@@ -13,7 +13,13 @@ config :invader, Oban,
   engine: Oban.Engines.Lite,
   queues: [default: 10, missions: 5],
   repo: Invader.Repo,
-  plugins: [{Oban.Plugins.Cron, []}]
+  plugins: [
+    {Oban.Plugins.Cron,
+     crontab: [
+       # Fleet status sync - every 5 minutes
+       {"*/5 * * * *", Invader.Workers.FleetStatusSync}
+     ]}
+  ]
 
 config :ash,
   allow_forbidden_field_for_relationships_by_default?: true,
@@ -54,7 +60,7 @@ config :spark,
 config :invader,
   ecto_repos: [Invader.Repo],
   generators: [timestamp_type: :utc_datetime],
-  ash_domains: [Invader.Sprites, Invader.Missions, Invader.Saves]
+  ash_domains: [Invader.Sprites, Invader.Missions, Invader.Saves, Invader.Loadouts]
 
 # Configure the endpoint
 config :invader, InvaderWeb.Endpoint,

@@ -39,7 +39,7 @@ defmodule InvaderWeb.MissionDetailComponent do
         <div>
           <span class="text-green-600">DURATION</span>
           <div class="text-green-400">
-            {format_duration(@mission.started_at, @mission.finished_at)}
+            {format_duration(@mission)}
           </div>
         </div>
       </div>
@@ -48,6 +48,46 @@ defmodule InvaderWeb.MissionDetailComponent do
         <div class="border border-red-700 rounded p-3 bg-red-950/30">
           <span class="text-red-500 text-sm">ERROR</span>
           <div class="text-red-400 text-sm mt-1">{@mission.error_message}</div>
+        </div>
+      <% end %>
+      
+    <!-- Checkpoints -->
+      <%= if not Enum.empty?(@checkpoints) do %>
+        <div>
+          <h3 class="text-green-400 font-bold mb-3 flex items-center gap-2">
+            <span>◈</span> CHECKPOINTS
+          </h3>
+          <div class="space-y-2 max-h-40 overflow-y-auto">
+            <%= for checkpoint <- @checkpoints do %>
+              <div class="border border-green-800 p-2 flex justify-between items-center hover:bg-green-950/30">
+                <div>
+                  <div class="text-green-400 text-xs">
+                    {checkpoint.comment || "WAVE-#{checkpoint.wave_number}"}
+                  </div>
+                  <div class="text-[8px] text-green-700">
+                    {format_checkpoint_time(checkpoint.inserted_at)}
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    phx-click="restore_save"
+                    phx-value-id={checkpoint.id}
+                    class="px-2 py-1 border border-green-600 text-green-400 text-[8px] hover:bg-green-900/30"
+                  >
+                    RESTORE
+                  </button>
+                  <button
+                    phx-click="delete_save"
+                    phx-value-id={checkpoint.id}
+                    data-confirm="Delete this checkpoint?"
+                    class="px-2 py-1 border border-red-700 text-red-400 text-[8px] hover:bg-red-900/30"
+                  >
+                    DEL
+                  </button>
+                </div>
+              </div>
+            <% end %>
+          </div>
         </div>
       <% end %>
       
@@ -91,10 +131,29 @@ defmodule InvaderWeb.MissionDetailComponent do
 
                 <%= if wave.id in @expanded_waves do %>
                   <div class="border-t border-green-800 p-2">
-                    <%= if wave.output do %>
-                      <pre class="text-xs text-green-500 bg-black p-2 rounded overflow-x-auto max-h-48 overflow-y-auto font-mono whitespace-pre-wrap">{wave.output}</pre>
-                    <% else %>
-                      <p class="text-green-700 text-xs">No output captured</p>
+                    <%= cond do %>
+                      <% wave.id == @running_wave_id and @live_output != "" -> %>
+                        <!-- Live streaming output -->
+                        <div class="relative">
+                          <div class="absolute top-1 right-1 flex items-center gap-1">
+                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            <span class="text-[8px] text-green-500">LIVE</span>
+                          </div>
+                          <pre
+                            id={"live-output-#{wave.id}"}
+                            phx-hook="ScrollToBottom"
+                            class="text-xs text-green-500 bg-black p-2 pt-6 rounded overflow-x-auto max-h-48 overflow-y-auto font-mono whitespace-pre-wrap"
+                          >{@live_output}</pre>
+                        </div>
+                      <% wave.output -> %>
+                        <pre class="text-xs text-green-500 bg-black p-2 rounded overflow-x-auto max-h-48 overflow-y-auto font-mono whitespace-pre-wrap">{wave.output}</pre>
+                      <% wave.id == @running_wave_id -> %>
+                        <p class="text-green-600 text-xs flex items-center gap-2">
+                          <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                          Waiting for output...
+                        </p>
+                      <% true -> %>
+                        <p class="text-green-700 text-xs">No output captured</p>
                     <% end %>
                   </div>
                 <% end %>
@@ -127,13 +186,26 @@ defmodule InvaderWeb.MissionDetailComponent do
 
   @impl true
   def update(assigns, socket) do
-    mission = Ash.load!(assigns.mission, [:sprite, :waves])
+    # Handle partial updates (just live_output_chunk) vs full updates (with mission)
+    if Map.has_key?(assigns, :live_output_chunk) and not Map.has_key?(assigns, :mission) do
+      # Partial update - just append the chunk to existing live_output
+      current = socket.assigns[:live_output] || ""
+      {:ok, assign(socket, :live_output, current <> assigns.live_output_chunk)}
+    else
+      # Full update - reload mission and set up assigns
+      mission = Ash.load!(assigns.mission, [:sprite, :waves])
 
-    {:ok,
-     socket
-     |> assign(assigns)
-     |> assign(:mission, mission)
-     |> assign_new(:expanded_waves, fn -> MapSet.new() end)}
+      # Find the running wave (if any) to track for live output
+      running_wave = Enum.find(mission.waves, &is_nil(&1.exit_code))
+
+      {:ok,
+       socket
+       |> assign(assigns)
+       |> assign(:mission, mission)
+       |> assign(:running_wave_id, running_wave && running_wave.id)
+       |> assign_new(:expanded_waves, fn -> MapSet.new() end)
+       |> assign_new(:live_output, fn -> "" end)}
+    end
   end
 
   @impl true
@@ -156,9 +228,11 @@ defmodule InvaderWeb.MissionDetailComponent do
   defp status_text_class(:failed), do: "text-red-400"
   defp status_text_class(:aborted), do: "text-yellow-400"
   defp status_text_class(:running), do: "text-green-400 animate-pulse"
+  defp status_text_class(:pausing), do: "text-yellow-400 animate-pulse"
   defp status_text_class(:paused), do: "text-yellow-400"
   defp status_text_class(_), do: "text-green-400"
 
+  defp status_label(:pausing), do: "PAUSING..."
   defp status_label(status), do: status |> to_string() |> String.upcase()
 
   defp exit_code_class(nil), do: "text-green-600"
@@ -169,12 +243,36 @@ defmodule InvaderWeb.MissionDetailComponent do
   defp exit_code_label(0), do: "OK"
   defp exit_code_label(code), do: "exit #{code}"
 
-  defp format_duration(nil, _), do: "-"
-  defp format_duration(_, nil), do: "in progress"
+  defp format_duration(%{waves: waves, status: status, finished_at: mission_finished_at})
+       when is_list(waves) do
+    # For terminal states, use mission's finished_at as upper bound for incomplete waves
+    end_time =
+      if status in [:completed, :failed, :aborted] and mission_finished_at do
+        mission_finished_at
+      else
+        DateTime.utc_now()
+      end
 
-  defp format_duration(started_at, finished_at) do
-    diff = DateTime.diff(finished_at, started_at, :second)
+    diff =
+      waves
+      |> Enum.reduce(0, fn wave, acc ->
+        case {wave.started_at, wave.finished_at} do
+          {nil, _} -> acc
+          {started, nil} -> acc + DateTime.diff(end_time, started, :second)
+          {started, finished} -> acc + DateTime.diff(finished, started, :second)
+        end
+      end)
 
+    if diff == 0 and status in [:running, :pausing] do
+      "in progress"
+    else
+      format_seconds(diff)
+    end
+  end
+
+  defp format_duration(_), do: "-"
+
+  defp format_seconds(diff) do
     cond do
       diff < 60 -> "#{diff}s"
       diff < 3600 -> "#{div(diff, 60)}m #{rem(diff, 60)}s"
@@ -188,5 +286,9 @@ defmodule InvaderWeb.MissionDetailComponent do
   defp format_wave_duration(%{started_at: started, finished_at: finished}) do
     diff = DateTime.diff(finished, started, :second)
     "#{diff}s"
+  end
+
+  defp format_checkpoint_time(datetime) do
+    Calendar.strftime(datetime, "%H:%M:%S")
   end
 end

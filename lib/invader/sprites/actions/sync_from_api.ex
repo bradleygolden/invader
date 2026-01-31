@@ -22,20 +22,25 @@ defmodule Invader.Sprites.Actions.SyncFromApi do
   defp sync_sprites(sprites_data) do
     Enum.map(sprites_data, fn sprite_data ->
       name = sprite_data["name"] || sprite_data[:name]
+      org = sprite_data["organization"] || sprite_data[:organization]
       status = parse_status(sprite_data["status"] || sprite_data[:status])
 
       case Invader.Sprites.Sprite.get_by_name(name) do
         {:ok, existing} ->
-          Invader.Sprites.Sprite.update_status!(existing, status)
+          existing
+          |> Ash.Changeset.for_update(:update, %{org: org, status: status})
+          |> Ash.update!()
 
         {:error, _} ->
-          Invader.Sprites.Sprite.create!(%{name: name, status: status})
+          Invader.Sprites.Sprite.create!(%{name: name, org: org, status: status})
       end
     end)
   end
 
   defp parse_status("running"), do: :available
+  defp parse_status("warm"), do: :available
   defp parse_status("stopped"), do: :offline
+  defp parse_status("cold"), do: :offline
   defp parse_status("busy"), do: :busy
   defp parse_status(status) when is_atom(status), do: status
   defp parse_status(_), do: :unknown

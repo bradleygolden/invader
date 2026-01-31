@@ -17,6 +17,7 @@ defmodule Invader.Saves.Save do
     define :get, action: :read, get_by: [:id]
     define :create, action: :create
     define :for_sprite, action: :for_sprite, args: [:sprite_id]
+    define :for_mission, action: :for_mission, args: [:mission_id]
   end
 
   actions do
@@ -29,6 +30,11 @@ defmodule Invader.Saves.Save do
     read :for_sprite do
       argument :sprite_id, :uuid, allow_nil?: false
       filter expr(sprite_id == ^arg(:sprite_id))
+    end
+
+    read :for_mission do
+      argument :mission_id, :uuid, allow_nil?: false
+      filter expr(mission_id == ^arg(:mission_id))
     end
   end
 

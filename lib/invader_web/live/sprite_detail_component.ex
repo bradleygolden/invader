@@ -58,7 +58,7 @@ defmodule InvaderWeb.SpriteDetailComponent do
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- CPU -->
-            <div class="border border-green-800 rounded p-3 bg-black/50">
+            <div class="border border-green-800 rounded p-3 bg-black/50 overflow-hidden">
               <div class="text-green-600 text-xs mb-2">CPU</div>
               <div class="text-2xl text-green-400 font-bold">{@metrics.cpu.cores} cores</div>
               <div class="mt-2 text-xs">
@@ -80,7 +80,7 @@ defmodule InvaderWeb.SpriteDetailComponent do
             </div>
             
     <!-- Memory -->
-            <div class="border border-green-800 rounded p-3 bg-black/50">
+            <div class="border border-green-800 rounded p-3 bg-black/50 overflow-hidden">
               <div class="text-green-600 text-xs mb-2">MEMORY</div>
               <div class="text-2xl text-green-400 font-bold">
                 {format_bytes(@metrics.memory.used)} / {format_bytes(@metrics.memory.total)}
@@ -97,16 +97,13 @@ defmodule InvaderWeb.SpriteDetailComponent do
                   {memory_percent(@metrics.memory)}% used
                 </div>
               </div>
-              <div class="mt-2 text-xs">
-                <div class="flex justify-between">
-                  <span class="text-green-600">Available</span>
-                  <span class="text-green-400">{format_bytes(@metrics.memory.available)}</span>
-                </div>
+              <div class="mt-1 text-[10px] text-green-600 truncate">
+                Avail: <span class="text-green-400">{format_bytes(@metrics.memory.available)}</span>
               </div>
             </div>
             
     <!-- Disk -->
-            <div class="border border-green-800 rounded p-3 bg-black/50">
+            <div class="border border-green-800 rounded p-3 bg-black/50 overflow-hidden">
               <div class="text-green-600 text-xs mb-2">DISK</div>
               <div class="text-2xl text-green-400 font-bold">
                 {format_bytes(@metrics.disk.used)} / {format_bytes(@metrics.disk.total)}
@@ -123,11 +120,8 @@ defmodule InvaderWeb.SpriteDetailComponent do
                   {@metrics.disk.percent}% used
                 </div>
               </div>
-              <div class="mt-2 text-xs">
-                <div class="flex justify-between">
-                  <span class="text-green-600">Available</span>
-                  <span class="text-green-400">{format_bytes(@metrics.disk.available)}</span>
-                </div>
+              <div class="mt-1 text-[10px] text-green-600 truncate">
+                Avail: <span class="text-green-400">{format_bytes(@metrics.disk.available)}</span>
               </div>
             </div>
           </div>
@@ -159,6 +153,15 @@ defmodule InvaderWeb.SpriteDetailComponent do
       
     <!-- Actions -->
       <div class="flex justify-end gap-3 pt-4 border-t border-green-800">
+        <button
+          phx-hook="CopyToClipboard"
+          id={"terminal-modal-#{@sprite.id}"}
+          data-clipboard-text={"sprite console -o #{@sprite.org} -s #{@sprite.name}"}
+          class="px-4 py-2 border border-cyan-600 text-cyan-400 rounded hover:bg-cyan-900/30"
+          title="Copy terminal command to clipboard"
+        >
+          ⌨ TERM
+        </button>
         <.link
           patch={~p"/"}
           class="px-4 py-2 border border-green-700 text-green-600 rounded hover:bg-green-900/30"

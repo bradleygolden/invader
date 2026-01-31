@@ -60,8 +60,8 @@ defmodule Invader.Workers.LoopRunner do
     # Get prompt - either from file (refreshed each wave) or inline
     prompt = get_prompt(mission)
 
-    # Execute the wave
-    {output, exit_code} = execute_wave(mission, prompt)
+    # Execute the wave with streaming output
+    {output, exit_code} = execute_wave(mission, prompt, wave.id)
 
     # Update wave with results
     {:ok, _wave} =
@@ -96,15 +96,21 @@ defmodule Invader.Workers.LoopRunner do
     ""
   end
 
-  defp execute_wave(mission, prompt) do
+  defp execute_wave(mission, prompt, wave_id) do
     sprite = Ash.load!(mission, :sprite).sprite
 
     # Build the claude command with prompt piped in
     command = build_claude_command(prompt)
 
-    case Cli.exec(sprite.name, command) do
+    # Topic for streaming output to subscribers
+    topic = "wave:#{wave_id}"
+
+    # Pass mission_id so the process can be killed if paused/aborted
+    case Cli.exec_streaming(sprite.name, command, topic: topic, mission_id: mission.id) do
       {:ok, output} -> {output, 0}
-      {:error, {code, output}} -> {output, code}
+      {:error, {code, output}} when is_integer(code) -> {output, code}
+      {:error, :killed} -> {"Mission was paused or aborted", -1}
+      {:error, reason} -> {inspect(reason), 1}
     end
   end
 
@@ -115,22 +121,50 @@ defmodule Invader.Workers.LoopRunner do
   end
 
   defp handle_wave_result(mission, wave_number, exit_code, _output) do
+    # Re-fetch mission to check current status (may have been paused/aborted)
+    {:ok, current_mission} = Mission.get(mission.id)
+
+    Logger.debug(
+      "handle_wave_result: mission=#{mission.id} wave=#{wave_number} exit_code=#{exit_code} status=#{current_mission.status}"
+    )
+
     cond do
+      # Mission is pausing - confirm the pause now that the wave is complete
+      current_mission.status == :pausing ->
+        Logger.info("Mission #{mission.id} pausing confirmed after wave #{wave_number}")
+        Mission.confirm_pause(current_mission)
+        {:ok, :paused}
+
+      # Mission was already paused or aborted during execution
+      current_mission.status in [:paused, :aborted] ->
+        Logger.info(
+          "Mission #{mission.id} was #{current_mission.status} during wave #{wave_number}"
+        )
+
+        {:ok, current_mission.status}
+
+      # Process was killed (e.g., by pause/abort)
+      exit_code == -1 ->
+        Logger.info("Mission #{mission.id} wave was terminated")
+        {:ok, :terminated}
+
       exit_code != 0 ->
         Logger.error("Wave #{wave_number} failed with exit code #{exit_code}")
-        Mission.fail(mission, %{error_message: "Exit code: #{exit_code}"})
+        Mission.fail(current_mission, %{error_message: "Exit code: #{exit_code}"})
         maybe_start_next_pending()
         {:error, :wave_failed}
 
-      wave_number >= mission.max_waves ->
+      wave_number >= current_mission.max_waves ->
         Logger.info("Mission #{mission.id} completed after #{wave_number} waves")
-        Mission.complete(mission)
+        # Update current_wave to final value before completing
+        update_current_wave(current_mission.id, wave_number)
+        Mission.complete(current_mission)
         maybe_start_next_pending()
         {:ok, :completed}
 
       true ->
         # Update current_wave and schedule next wave
-        schedule_next_wave(mission, wave_number)
+        schedule_next_wave(current_mission, wave_number)
     end
   end
 
@@ -151,12 +185,16 @@ defmodule Invader.Workers.LoopRunner do
     end
   end
 
+  defp update_current_wave(mission_id, wave_number) do
+    # Update current wave count using Ecto directly to avoid Ash validation issues
+    import Ecto.Query
+
+    from(m in "missions", where: m.id == ^mission_id)
+    |> Invader.Repo.update_all(set: [current_wave: wave_number, updated_at: DateTime.utc_now()])
+  end
+
   defp schedule_next_wave(mission, wave_number) do
-    # Update current wave count
-    mission
-    |> Ash.Changeset.for_update(:update, %{})
-    |> Ash.Changeset.change_attribute(:current_wave, wave_number)
-    |> Ash.update!()
+    update_current_wave(mission.id, wave_number)
 
     # Create checkpoint between waves
     create_checkpoint(mission, wave_number)
