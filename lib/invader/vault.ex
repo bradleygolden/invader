@@ -13,11 +13,18 @@ defmodule Invader.Vault do
       Keyword.put(config, :ciphers,
         default: {
           Cloak.Ciphers.AES.GCM,
-          tag: "AES.GCM.V1", key: decode_env!("CLOAK_KEY"), iv_length: 12
+          tag: "AES.GCM.V1", key: get_key!(config), iv_length: 12
         }
       )
 
     {:ok, config}
+  end
+
+  defp get_key!(config) do
+    case Keyword.get(config, :key) do
+      nil -> decode_env!("CLOAK_KEY")
+      key when is_binary(key) -> key
+    end
   end
 
   defp decode_env!(var) do

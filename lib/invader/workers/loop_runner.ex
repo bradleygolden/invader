@@ -21,7 +21,8 @@ defmodule Invader.Workers.LoopRunner do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"mission_id" => mission_id}}) do
     with {:ok, mission} <- Missions.Mission.get(mission_id),
-         :ok <- validate_can_run(mission) do
+         :ok <- validate_can_run(mission),
+         :ok <- ensure_cli_installed(mission) do
       run_wave(mission)
     else
       {:error, %Ash.Error.Query.NotFound{}} ->
@@ -44,6 +45,31 @@ defmodule Invader.Workers.LoopRunner do
 
   defp validate_can_run(%Mission{status: status}) do
     {:error, {:invalid_status, status}}
+  end
+
+  defp ensure_cli_installed(%{current_wave: 0} = mission) do
+    sprite = Ash.load!(mission, :sprite).sprite
+    invader_url = InvaderWeb.Endpoint.url()
+    token = generate_sprite_token(sprite.id, mission.id)
+
+    case Invader.Connections.Installer.install_cli(sprite.name, invader_url, token) do
+      {:ok, _output} ->
+        Logger.info("CLI installed on #{sprite.name} for mission #{mission.id}")
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("CLI installation failed: #{inspect(reason)}, continuing anyway")
+        :ok
+    end
+  end
+
+  defp ensure_cli_installed(_mission), do: :ok
+
+  defp generate_sprite_token(sprite_id, mission_id) do
+    Phoenix.Token.sign(InvaderWeb.Endpoint, "sprite_proxy", %{
+      sprite_id: sprite_id,
+      mission_id: mission_id
+    })
   end
 
   defp run_wave(mission) do

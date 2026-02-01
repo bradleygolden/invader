@@ -37,40 +37,48 @@ defmodule InvaderWeb.ProxyController do
       {"error": "..."}
   """
   def run(conn, %{"action" => "gh", "input" => input}) do
-    args = input["args"] || []
-    mode = parse_mode(input["mode"])
-    connection_id = input["connection_id"]
-    sprite_id = input["sprite_id"]
+    case verify_sprite_token(conn) do
+      {:ok, _claims} ->
+        args = input["args"] || []
+        mode = parse_mode(input["mode"])
+        connection_id = input["connection_id"]
+        sprite_id = input["sprite_id"]
 
-    case get_connection(connection_id) do
-      {:ok, connection} ->
-        opts = [sprite_id: sprite_id]
-        opts = if mode, do: Keyword.put(opts, :mode, mode), else: opts
+        case get_connection(connection_id) do
+          {:ok, connection} ->
+            opts = [sprite_id: sprite_id]
+            opts = if mode, do: Keyword.put(opts, :mode, mode), else: opts
 
-        case Executor.execute(connection, args, opts) do
-          {:ok, result} ->
-            json(conn, result)
+            case Executor.execute(connection, args, opts) do
+              {:ok, result} ->
+                json(conn, result)
 
-          {:error, %{exit_code: code, output: output}} ->
+              {:error, %{exit_code: code, output: output}} ->
+                conn
+                |> put_status(400)
+                |> json(%{error: "Command failed", exit_code: code, output: output})
+
+              {:error, reason} when is_binary(reason) ->
+                conn
+                |> put_status(400)
+                |> json(%{error: reason})
+
+              {:error, reason} ->
+                conn
+                |> put_status(400)
+                |> json(%{error: inspect(reason)})
+            end
+
+          {:error, :not_found} ->
             conn
-            |> put_status(400)
-            |> json(%{error: "Command failed", exit_code: code, output: output})
-
-          {:error, reason} when is_binary(reason) ->
-            conn
-            |> put_status(400)
-            |> json(%{error: reason})
-
-          {:error, reason} ->
-            conn
-            |> put_status(400)
-            |> json(%{error: inspect(reason)})
+            |> put_status(404)
+            |> json(%{error: "No GitHub connection configured"})
         end
 
-      {:error, :not_found} ->
+      {:error, :invalid_token} ->
         conn
-        |> put_status(404)
-        |> json(%{error: "No GitHub connection configured"})
+        |> put_status(401)
+        |> json(%{error: "Invalid or expired token"})
     end
   end
 
@@ -102,6 +110,16 @@ defmodule InvaderWeb.ProxyController do
     case Connection.get(id) do
       {:ok, connection} -> {:ok, connection}
       {:error, _} -> {:error, :not_found}
+    end
+  end
+
+  defp verify_sprite_token(conn) do
+    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
+         {:ok, claims} <-
+           Phoenix.Token.verify(InvaderWeb.Endpoint, "sprite_proxy", token, max_age: 86400) do
+      {:ok, claims}
+    else
+      _ -> {:error, :invalid_token}
     end
   end
 end

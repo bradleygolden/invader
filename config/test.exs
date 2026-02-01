@@ -1,4 +1,8 @@
 import Config
+
+# Test encryption key for Cloak vault (32 bytes for AES-256)
+config :invader, Invader.Vault, key: :crypto.strong_rand_bytes(32)
+
 config :invader, Oban, testing: :manual
 config :ash, policies: [show_policy_breakdowns?: true], disable_async?: true
 
