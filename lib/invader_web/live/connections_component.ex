@@ -129,7 +129,11 @@ defmodule InvaderWeb.ConnectionsComponent do
                     <p class="ml-3">• Metadata: Read-only</p>
                     <p>4. Uncheck "Webhook → Active"</p>
                     <p>5. Create app, then generate private key (.pem file)</p>
-                    <p>6. Install app on your repos (note Installation ID from URL)</p>
+                    <p>6. Click "Install App" in sidebar, install on your account</p>
+                    <p class="ml-3 text-cyan-500">
+                      → Installation ID is the number in URL after install:
+                    </p>
+                    <p class="ml-3 text-cyan-500">github.com/settings/installations/<span class="text-yellow-400">XXXXX</span></p>
                     <p>7. Copy App ID, Installation ID, and private key below</p>
                   </div>
                 </div>
@@ -161,12 +165,49 @@ defmodule InvaderWeb.ConnectionsComponent do
 
                 <div class="space-y-2">
                   <label class="text-cyan-500 text-[10px] block">PRIVATE KEY (PEM)</label>
-                  <textarea
-                    name={@form[:private_key].name}
-                    placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
-                    rows="6"
-                    class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none resize-none font-mono text-[10px]"
-                  >{@form[:private_key].value}</textarea>
+                  <%= if @editing_connection && @editing_connection.private_key && !@show_private_key_input do %>
+                    <!-- Configured state -->
+                    <div class="border-2 border-green-700 bg-green-900/20 p-3">
+                      <div class="flex items-center gap-3">
+                        <.key_icon />
+                        <div class="flex-1">
+                          <div class="text-white text-[10px] font-medium">Private key</div>
+                          <div class="text-cyan-500 text-[8px] font-mono">
+                            {key_fingerprint(@editing_connection.private_key)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          phx-click="show_private_key_input"
+                          phx-target={@myself}
+                          class="arcade-btn border-cyan-600 text-cyan-400 text-[8px] py-1 px-2"
+                        >
+                          REPLACE
+                        </button>
+                      </div>
+                    </div>
+                  <% else %>
+                    <!-- Input state -->
+                    <textarea
+                      name={@form[:private_key].name}
+                      placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
+                      rows="6"
+                      class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none resize-none font-mono text-[10px]"
+                    ></textarea>
+                    <%= if @editing_connection && @editing_connection.private_key do %>
+                      <div class="flex items-center gap-2">
+                        <span class="text-cyan-700 text-[8px]">Leave blank to keep current key</span>
+                        <button
+                          type="button"
+                          phx-click="hide_private_key_input"
+                          phx-target={@myself}
+                          class="text-cyan-500 hover:text-cyan-400 text-[8px]"
+                        >
+                          [CANCEL]
+                        </button>
+                      </div>
+                    <% end %>
+                  <% end %>
                 </div>
               <% else %>
                 <!-- Sprites Setup Instructions -->
@@ -194,13 +235,49 @@ defmodule InvaderWeb.ConnectionsComponent do
 
                 <div class="space-y-2">
                   <label class="text-cyan-500 text-[10px] block">API TOKEN</label>
-                  <input
-                    type="password"
-                    name={@form[:token].name}
-                    value={@form[:token].value}
-                    placeholder="spr_..."
-                    class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none font-mono"
-                  />
+                  <%= if @editing_connection && @editing_connection.token && !@show_token_input do %>
+                    <!-- Configured state -->
+                    <div class="border-2 border-green-700 bg-green-900/20 p-3">
+                      <div class="flex items-center gap-3">
+                        <.key_icon />
+                        <div class="flex-1">
+                          <div class="text-white text-[10px] font-medium">API Token</div>
+                          <div class="text-cyan-500 text-[8px] font-mono">
+                            {token_preview(@editing_connection.token)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          phx-click="show_token_input"
+                          phx-target={@myself}
+                          class="arcade-btn border-cyan-600 text-cyan-400 text-[8px] py-1 px-2"
+                        >
+                          REPLACE
+                        </button>
+                      </div>
+                    </div>
+                  <% else %>
+                    <!-- Input state -->
+                    <input
+                      type="password"
+                      name={@form[:token].name}
+                      placeholder="spr_..."
+                      class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none font-mono"
+                    />
+                    <%= if @editing_connection && @editing_connection.token do %>
+                      <div class="flex items-center gap-2">
+                        <span class="text-cyan-700 text-[8px]">Leave blank to keep current token</span>
+                        <button
+                          type="button"
+                          phx-click="hide_token_input"
+                          phx-target={@myself}
+                          class="text-cyan-500 hover:text-cyan-400 text-[8px]"
+                        >
+                          [CANCEL]
+                        </button>
+                      </div>
+                    <% end %>
+                  <% end %>
                 </div>
               <% end %>
 
@@ -313,6 +390,8 @@ defmodule InvaderWeb.ConnectionsComponent do
      |> assign_new(:editing_connection, fn -> nil end)
      |> assign(:selected_type, selected_type)
      |> assign_new(:add_connection_type, fn -> nil end)
+     |> assign_new(:show_private_key_input, fn -> false end)
+     |> assign_new(:show_token_input, fn -> false end)
      |> assign(:app_url, InvaderWeb.Endpoint.url())}
   end
 
@@ -337,7 +416,29 @@ defmodule InvaderWeb.ConnectionsComponent do
      |> assign(:show_form, false)
      |> assign(:form, form)
      |> assign(:editing_connection, nil)
-     |> assign(:selected_type, :github)}
+     |> assign(:selected_type, :github)
+     |> assign(:show_private_key_input, false)
+     |> assign(:show_token_input, false)}
+  end
+
+  @impl true
+  def handle_event("show_private_key_input", _params, socket) do
+    {:noreply, assign(socket, :show_private_key_input, true)}
+  end
+
+  @impl true
+  def handle_event("hide_private_key_input", _params, socket) do
+    {:noreply, assign(socket, :show_private_key_input, false)}
+  end
+
+  @impl true
+  def handle_event("show_token_input", _params, socket) do
+    {:noreply, assign(socket, :show_token_input, true)}
+  end
+
+  @impl true
+  def handle_event("hide_token_input", _params, socket) do
+    {:noreply, assign(socket, :show_token_input, false)}
   end
 
   @impl true
@@ -357,6 +458,16 @@ defmodule InvaderWeb.ConnectionsComponent do
           "github" -> Map.put(params, "name", "GitHub")
           _ -> params
         end
+      else
+        params
+      end
+
+    # When editing, preserve existing credentials if fields are left blank
+    params =
+      if socket.assigns.editing_connection do
+        params
+        |> maybe_preserve_field("private_key", socket.assigns.editing_connection.private_key)
+        |> maybe_preserve_field("token", socket.assigns.editing_connection.token)
       else
         params
       end
@@ -394,7 +505,9 @@ defmodule InvaderWeb.ConnectionsComponent do
          |> assign(:form, form)
          |> assign(:editing_connection, connection)
          |> assign(:show_form, true)
-         |> assign(:selected_type, connection.type)}
+         |> assign(:selected_type, connection.type)
+         |> assign(:show_private_key_input, false)
+         |> assign(:show_token_input, false)}
 
       {:error, _} ->
         {:noreply, socket}
@@ -470,6 +583,54 @@ defmodule InvaderWeb.ConnectionsComponent do
   defp parse_type("sprites"), do: :sprites
   defp parse_type(:sprites), do: :sprites
   defp parse_type(_), do: :github
+
+  # Preserve existing credential if new value is blank
+  defp maybe_preserve_field(params, field, existing_value) do
+    if blank?(params[field]) && existing_value do
+      Map.put(params, field, existing_value)
+    else
+      params
+    end
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(str) when is_binary(str), do: String.trim(str) == ""
+  defp blank?(_), do: false
+
+  # Generate a fingerprint for display (SHA256 hash truncated)
+  defp key_fingerprint(private_key) when is_binary(private_key) do
+    hash = :crypto.hash(:sha256, private_key) |> Base.encode16(case: :lower)
+    "SHA256:#{String.slice(hash, 0, 16)}..."
+  end
+
+  defp key_fingerprint(_), do: "configured"
+
+  # Show first few chars of token for identification
+  defp token_preview(token) when is_binary(token) do
+    if String.length(token) > 8 do
+      "#{String.slice(token, 0, 8)}..."
+    else
+      "••••••••"
+    end
+  end
+
+  defp token_preview(_), do: "configured"
+
+  # 8-bit pixel art key icon
+  defp key_icon(assigns) do
+    ~H"""
+    <svg viewBox="0 0 16 16" class="w-6 h-6 fill-current text-green-400" style="image-rendering: pixelated;">
+      <rect x="0" y="6" width="8" height="4" />
+      <rect x="8" y="5" width="2" height="6" />
+      <rect x="10" y="4" width="2" height="8" />
+      <rect x="12" y="5" width="2" height="6" />
+      <rect x="14" y="6" width="2" height="4" />
+      <rect x="2" y="10" width="2" height="2" />
+      <rect x="5" y="10" width="2" height="2" />
+    </svg>
+    """
+  end
 
   # 8-bit pixel art GitHub icon (octocat style)
   defp type_icon(%{type: :github} = assigns) do
