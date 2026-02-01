@@ -143,8 +143,7 @@ show_final_output() {
 # Deploy app on sprite
 echo ""
 echo "Deploying Invader..."
-DEPLOY_SUCCESS=false
-if sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
+sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
   set -e
 
   # Try to download prebuilt release first
@@ -216,8 +215,7 @@ ENVEOF
   done
   echo 'Warning: Application may still be starting.'
   exit 0
-" < /dev/null
-DEPLOY_EXIT_CODE=$?
+" < /dev/null || true
 
 # Always show final output
 show_final_output
