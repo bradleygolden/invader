@@ -64,6 +64,7 @@ defmodule Invader.Accounts.User do
     end
 
     # Sign-in action for GitHub OAuth (used with registration_enabled? false)
+    # Note: user_info uses OpenID Connect fields: "sub" (id), "preferred_username" (login), "picture" (avatar)
     read :sign_in_with_github do
       argument :user_info, :map, allow_nil?: false
       argument :oauth_tokens, :map, allow_nil?: false
@@ -73,8 +74,9 @@ defmodule Invader.Accounts.User do
 
       # Match by github_id (returning users) OR github_login (first-time pre-authorized users)
       filter expr(
-               github_id == get_path(^arg(:user_info), ["id"]) or
-                 (is_nil(github_id) and github_login == get_path(^arg(:user_info), ["login"]))
+               github_id == get_path(^arg(:user_info), ["sub"]) or
+                 (is_nil(github_id) and
+                    github_login == get_path(^arg(:user_info), ["preferred_username"]))
              )
     end
 

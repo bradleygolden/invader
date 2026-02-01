@@ -18,14 +18,16 @@ defmodule Invader.Accounts.User.Preparations.UpdateGitHubAttributes do
       user_info = Ash.Query.get_argument(query, :user_info)
 
       # Update each user with the GitHub attributes
+      # Note: user_info uses OpenID Connect fields:
+      #   "sub" -> github_id, "preferred_username" -> github_login, "picture" -> avatar_url
       updated_results =
         Enum.map(results, fn user ->
           attrs = %{
-            github_id: user_info["id"],
-            github_login: user_info["login"],
+            github_id: user_info["sub"],
+            github_login: user_info["preferred_username"],
             email: user_info["email"] || user.email,
             name: user_info["name"] || user.name,
-            avatar_url: user_info["avatar_url"]
+            avatar_url: user_info["picture"]
           }
 
           case Ash.update(user, attrs, action: :update_from_oauth, authorize?: false) do
