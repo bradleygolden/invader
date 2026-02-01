@@ -16,8 +16,8 @@ defmodule Invader.Connections.Connection do
 
   cloak do
     vault(Invader.Vault)
-    attributes([:private_key])
-    decrypt_by_default([:private_key])
+    attributes([:private_key, :token])
+    decrypt_by_default([:private_key, :token])
   end
 
   code_interface do
@@ -33,12 +33,12 @@ defmodule Invader.Connections.Connection do
     defaults [:read, :destroy]
 
     create :create do
-      accept [:type, :name, :app_id, :installation_id, :private_key]
+      accept [:type, :name, :app_id, :installation_id, :private_key, :token]
       change set_attribute(:status, :pending)
     end
 
     update :update do
-      accept [:name, :app_id, :installation_id, :private_key, :status]
+      accept [:name, :app_id, :installation_id, :private_key, :token, :status]
       require_atomic? false
     end
 
@@ -55,7 +55,7 @@ defmodule Invader.Connections.Connection do
     attribute :type, :atom do
       allow_nil? false
       public? true
-      constraints one_of: [:github]
+      constraints one_of: [:github, :sprites]
       description "Type of connection (github, linear, etc.)"
     end
 
@@ -90,6 +90,12 @@ defmodule Invader.Connections.Connection do
       allow_nil? true
       sensitive? true
       description "GitHub App private key (PEM format)"
+    end
+
+    attribute :token, :string do
+      allow_nil? true
+      sensitive? true
+      description "API token (for Sprites and other token-based services)"
     end
 
     timestamps()

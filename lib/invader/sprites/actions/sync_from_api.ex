@@ -4,18 +4,26 @@ defmodule Invader.Sprites.Actions.SyncFromApi do
   """
   use Ash.Resource.Actions.Implementation
 
+  alias Invader.Connections.Sprites.TokenProvider
+
   @impl true
   def run(_input, _opts, _context) do
-    token = System.get_env("SPRITES_TOKEN") || raise "SPRITES_TOKEN not set"
-    client = Sprites.new(token)
+    case TokenProvider.get_token() do
+      {:ok, token} ->
+        client = Sprites.new(token)
 
-    case Sprites.list(client) do
-      {:ok, sprites_data} ->
-        sprites = sync_sprites(sprites_data)
-        {:ok, sprites}
+        case Sprites.list(client) do
+          {:ok, sprites_data} ->
+            sprites = sync_sprites(sprites_data)
+            {:ok, sprites}
 
-      {:error, reason} ->
-        {:error, reason}
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, :not_configured} ->
+        {:error,
+         "Sprites connection not configured. Add a Sprites connection in Settings → Connections."}
     end
   end
 

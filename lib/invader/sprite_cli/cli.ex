@@ -3,12 +3,26 @@ defmodule Invader.SpriteCli.Cli do
   Wrapper for interacting with sprites via the Sprites SDK.
   """
 
+  alias Invader.Connections.Sprites.TokenProvider
+
   @doc """
-  Gets a Sprites client. Reads token from SPRITES_TOKEN env var.
+  Gets a Sprites client. First tries stored connection, falls back to SPRITES_TOKEN env var.
   """
   def client do
-    token = System.get_env("SPRITES_TOKEN") || raise "SPRITES_TOKEN not set"
+    token = get_token!()
     Sprites.new(token)
+  end
+
+  defp get_token! do
+    case TokenProvider.get_token() do
+      {:ok, token} ->
+        token
+
+      {:error, :not_configured} ->
+        # Fallback to env var for backwards compatibility
+        System.get_env("SPRITES_TOKEN") ||
+          raise "Sprites connection not configured. Add a Sprites connection in Settings → Connections, or set SPRITES_TOKEN env var."
+    end
   end
 
   @doc """
