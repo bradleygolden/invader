@@ -18,7 +18,7 @@ defmodule InvaderWeb.SignInLive do
        page_title: "Sign In",
        needs_setup: needs_setup,
        magic_link_enabled: magic_link_enabled,
-       auth_method: "magic_link",
+       auth_method: if(magic_link_enabled, do: "magic_link", else: "github"),
        form_error: nil,
        magic_link_sent: false
      )}
@@ -115,28 +115,30 @@ defmodule InvaderWeb.SignInLive do
               />
             </div>
 
-            <div>
-              <label class="block text-[8px] text-cyan-600 mb-1">AUTH METHOD</label>
-              <div class="flex gap-2">
-                <button
-                  type="button"
-                  phx-click="set_auth_method"
-                  phx-value-method="magic_link"
-                  class={"flex-1 py-2 text-[10px] border transition-colors " <> if(@auth_method == "magic_link", do: "border-cyan-400 text-cyan-400 bg-cyan-400/10", else: "border-cyan-700 text-cyan-700 hover:border-cyan-500")}
-                >
-                  MAGIC LINK
-                </button>
-                <button
-                  type="button"
-                  phx-click="set_auth_method"
-                  phx-value-method="github"
-                  class={"flex-1 py-2 text-[10px] border transition-colors " <> if(@auth_method == "github", do: "border-cyan-400 text-cyan-400 bg-cyan-400/10", else: "border-cyan-700 text-cyan-700 hover:border-cyan-500")}
-                >
-                  GITHUB
-                </button>
+            <%= if @magic_link_enabled do %>
+              <div>
+                <label class="block text-[8px] text-cyan-600 mb-1">AUTH METHOD</label>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    phx-click="set_auth_method"
+                    phx-value-method="magic_link"
+                    class={"flex-1 py-2 text-[10px] border transition-colors " <> if(@auth_method == "magic_link", do: "border-cyan-400 text-cyan-400 bg-cyan-400/10", else: "border-cyan-700 text-cyan-700 hover:border-cyan-500")}
+                  >
+                    MAGIC LINK
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="set_auth_method"
+                    phx-value-method="github"
+                    class={"flex-1 py-2 text-[10px] border transition-colors " <> if(@auth_method == "github", do: "border-cyan-400 text-cyan-400 bg-cyan-400/10", else: "border-cyan-700 text-cyan-700 hover:border-cyan-500")}
+                  >
+                    GITHUB
+                  </button>
+                </div>
               </div>
-              <input type="hidden" name="auth_method" value={@auth_method} />
-            </div>
+            <% end %>
+            <input type="hidden" name="auth_method" value={@auth_method} />
 
             <div>
               <label class="block text-[8px] text-cyan-600 mb-1">
