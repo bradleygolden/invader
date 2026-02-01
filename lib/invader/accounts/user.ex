@@ -28,6 +28,8 @@ defmodule Invader.Accounts.User do
         client_id Invader.Secrets
         client_secret Invader.Secrets
         redirect_uri Invader.Secrets
+        # Use sign-in mode since users must be pre-authorized
+        registration_enabled? false
       end
 
       magic_link do
@@ -61,14 +63,19 @@ defmodule Invader.Accounts.User do
       prepare build(select: [:id])
     end
 
-    create :register_with_github do
+    # Sign-in action for GitHub OAuth (used with registration_enabled? false)
+    read :sign_in_with_github do
       argument :user_info, :map, allow_nil?: false
       argument :oauth_tokens, :map, allow_nil?: false
-      upsert? true
-      upsert_identity :unique_github_id
 
-      change AshAuthentication.GenerateTokenChange
-      change Invader.Accounts.User.Changes.SetGitHubAttributes
+      prepare AshAuthentication.Strategy.OAuth2.SignInPreparation
+      prepare Invader.Accounts.User.Preparations.UpdateGitHubAttributes
+
+      # Match by github_id (returning users) OR github_login (first-time pre-authorized users)
+      filter expr(
+               github_id == get_path(^arg(:user_info), ["id"]) or
+                 (is_nil(github_id) and github_login == get_path(^arg(:user_info), ["login"]))
+             )
     end
 
     create :create do
@@ -81,14 +88,9 @@ defmodule Invader.Accounts.User do
       accept [:email, :name, :is_admin]
     end
 
-    update :sign_in_with_github do
+    update :update_from_oauth do
       description "Update user with GitHub OAuth data on sign-in"
-      argument :user_info, :map, allow_nil?: false
-      argument :oauth_tokens, :map, allow_nil?: false
-      require_atomic? false
-
-      change AshAuthentication.GenerateTokenChange
-      change Invader.Accounts.User.Changes.SetGitHubAttributes
+      accept [:github_id, :github_login, :email, :name, :avatar_url]
     end
 
     destroy :destroy do
