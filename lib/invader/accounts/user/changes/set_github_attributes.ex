@@ -33,11 +33,11 @@ defmodule Invader.Accounts.User.Changes.SetGitHubAttributes do
     cond do
       # Existing user by github_id - allow update
       existing_by_id != nil ->
-        set_github_attrs(changeset, user_info)
+        set_github_attrs(changeset, user_info, existing_by_id)
 
-      # Pre-authorized by github_login - first-time sign-in
+      # Pre-authorized by github_login - first-time sign-in, update existing user
       pre_authorized != nil ->
-        set_github_attrs(changeset, user_info)
+        set_github_attrs(changeset, user_info, pre_authorized)
 
       # Unknown user - reject
       true ->
@@ -51,7 +51,7 @@ defmodule Invader.Accounts.User.Changes.SetGitHubAttributes do
     end
   end
 
-  defp set_github_attrs(changeset, user_info) do
+  defp set_github_attrs(changeset, user_info, existing_user) do
     attrs = %{
       github_id: user_info["id"],
       github_login: user_info["login"],
@@ -60,6 +60,9 @@ defmodule Invader.Accounts.User.Changes.SetGitHubAttributes do
       avatar_url: user_info["avatar_url"]
     }
 
-    Ash.Changeset.change_attributes(changeset, attrs)
+    # Force upsert to find the existing user by setting their github_id on the record
+    changeset
+    |> Ash.Changeset.force_change_attribute(:id, existing_user.id)
+    |> Ash.Changeset.change_attributes(attrs)
   end
 end
