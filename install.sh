@@ -96,6 +96,7 @@ echo "Generating secrets..."
 SECRET_KEY_BASE=$(openssl rand -base64 48)
 TOKEN_SIGNING_SECRET=$(openssl rand -base64 48)
 CLOAK_KEY=$(openssl rand -base64 32)
+ADMIN_SETUP_TOKEN=$(openssl rand -hex 16)
 
 # Deploy app on sprite
 echo ""
@@ -143,6 +144,7 @@ sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
 SECRET_KEY_BASE=$SECRET_KEY_BASE
 TOKEN_SIGNING_SECRET=$TOKEN_SIGNING_SECRET
 CLOAK_KEY=$CLOAK_KEY
+ADMIN_SETUP_TOKEN=$ADMIN_SETUP_TOKEN
 PHX_HOST=${PUBLIC_URL#https://}
 DATABASE_URL=ecto://localhost/invader.db
 PHX_SERVER=true
@@ -183,9 +185,19 @@ echo -e "${GREEN}═════════════════════
 echo ""
 echo -e "Public URL: ${BLUE}${PUBLIC_URL}${NC}"
 echo ""
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}  IMPORTANT: Save this admin setup token!${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  Setup Token: ${GREEN}${ADMIN_SETUP_TOKEN}${NC}"
+echo ""
+echo "  You'll need this token to complete the first-time admin setup."
+echo "  This token is only needed once and cannot be recovered."
+echo ""
 echo "Next steps:"
 echo "  1. Visit $PUBLIC_URL"
-echo "  2. Sign in with GitHub (first user becomes admin)"
+echo "  2. Enter the setup token above"
+echo "  3. Sign in with GitHub to become admin"
 echo ""
 echo -e "${YELLOW}To manage this sprite:${NC}"
 echo "  sprite exec -o $ORG -s $SPRITE_NAME -- <command>"

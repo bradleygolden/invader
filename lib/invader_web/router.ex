@@ -24,6 +24,9 @@ defmodule InvaderWeb.Router do
     sign_in_route(auth_routes_prefix: "/auth", live_view: InvaderWeb.SignInLive)
     sign_out_route AuthController
     auth_routes AuthController, Invader.Accounts.User, path: "/auth"
+
+    # Admin setup token validation
+    get "/auth/setup/validate", SetupController, :validate
   end
 
   # Protected routes - require authentication

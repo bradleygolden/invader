@@ -37,6 +37,11 @@ if token_signing_secret = System.get_env("TOKEN_SIGNING_SECRET") do
   config :invader, :token_signing_secret, token_signing_secret
 end
 
+# Admin setup token - required for first user signup
+if admin_setup_token = System.get_env("ADMIN_SETUP_TOKEN") do
+  config :invader, :admin_setup_token, admin_setup_token
+end
+
 # GitHub redirect URI - construct from host
 github_redirect_uri =
   case {config_env(), System.get_env("PHX_HOST")} do

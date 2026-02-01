@@ -6,8 +6,8 @@ defmodule InvaderWeb.PageControllerTest do
     assert redirected_to(conn) == "/sign-in"
   end
 
-  test "GET /sign-in shows sign in page", %{conn: conn} do
+  test "GET /sign-in shows admin setup when no users exist", %{conn: conn} do
     conn = get(conn, ~p"/sign-in")
-    assert html_response(conn, 200) =~ "PLAYER LOGIN"
+    assert html_response(conn, 200) =~ "ADMIN SETUP"
   end
 end
