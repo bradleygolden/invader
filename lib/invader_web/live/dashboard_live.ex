@@ -144,6 +144,13 @@ defmodule InvaderWeb.DashboardLive do
   defp apply_action(socket, :connections, _params) do
     socket
     |> assign(:page_title, "Connections")
+    |> assign(:add_connection_type, nil)
+  end
+
+  defp apply_action(socket, :add_connection, %{"type" => type}) do
+    socket
+    |> assign(:page_title, "Add Connection")
+    |> assign(:add_connection_type, type)
   end
 
   defp parse_page(nil), do: 1
@@ -504,6 +511,13 @@ defmodule InvaderWeb.DashboardLive do
     # Ensure current page is valid
     page = min(page, total_pages)
 
+    # Check if Sprites connection is configured
+    has_sprites_connection =
+      case Invader.Connections.Connection.get_by_type(:sprites) do
+        {:ok, _} -> true
+        _ -> false
+      end
+
     socket
     |> assign(:running_missions, running)
     |> assign(:pending_missions, pending)
@@ -513,6 +527,7 @@ defmodule InvaderWeb.DashboardLive do
     |> assign(:scores_total_count, total_completed)
     |> assign(:sprites, sprites)
     |> assign(:stats, calculate_stats(all_missions))
+    |> assign(:has_sprites_connection, has_sprites_connection)
   end
 
   defp calculate_stats(missions) do
@@ -674,15 +689,16 @@ defmodule InvaderWeb.DashboardLive do
       </.modal>
 
       <.modal
-        :if={@live_action == :connections}
+        :if={@live_action in [:connections, :add_connection]}
         id="connections-modal"
         show
         on_cancel={JS.patch(~p"/")}
       >
-        <:title>CONNECTIONS</:title>
+        <:title>{if @live_action == :add_connection, do: "ADD CONNECTION", else: "CONNECTIONS"}</:title>
         <.live_component
           module={InvaderWeb.ConnectionsComponent}
           id="connections-manager"
+          add_connection_type={assigns[:add_connection_type]}
         />
       </.modal>
       
@@ -1223,37 +1239,55 @@ defmodule InvaderWeb.DashboardLive do
             <span class="text-xs sm:text-sm">◆</span>
             <span>FLEET STATUS</span>
           </h2>
-          <div class="flex gap-1 sm:gap-2">
-            <button
-              phx-click="sync_sprites"
-              class="arcade-btn border-cyan-500 text-cyan-400 text-[8px] py-1.5 px-2 sm:py-1 sm:px-2"
-            >
-              SYNC
-            </button>
-            <.link
-              patch={~p"/sprites/new"}
-              class="arcade-btn border-green-500 text-green-400 text-[8px] py-1.5 px-2 sm:py-1 sm:px-2"
-            >
-              + ADD
-            </.link>
-          </div>
-        </div>
-        <div class="flex flex-wrap gap-2 sm:gap-3">
-          <%= for sprite <- @sprites do %>
-            <.link
-              patch={~p"/sprites/#{sprite.id}"}
-              class={"border-2 px-2 py-1.5 sm:px-3 sm:py-2 hover:bg-white/5 transition-colors block cursor-pointer #{sprite_status_class(sprite.status)}"}
-            >
-              <div class="flex items-center gap-1.5 sm:gap-2">
-                <span class={"text-base sm:text-lg #{sprite_indicator_class(sprite.status)}"}>◆</span>
-                <span class="text-white text-[10px] sm:text-xs">{sprite.name}</span>
-              </div>
-              <div class={"text-[8px] mt-1 #{sprite_status_text_class(sprite.status)}"}>
-                {sprite_status_label(sprite.status)}
-              </div>
-            </.link>
+          <%= if @has_sprites_connection do %>
+            <div class="flex gap-1 sm:gap-2">
+              <button
+                phx-click="sync_sprites"
+                class="arcade-btn border-cyan-500 text-cyan-400 text-[8px] py-1.5 px-2 sm:py-1 sm:px-2"
+              >
+                SYNC
+              </button>
+              <.link
+                patch={~p"/sprites/new"}
+                class="arcade-btn border-green-500 text-green-400 text-[8px] py-1.5 px-2 sm:py-1 sm:px-2"
+              >
+                + ADD
+              </.link>
+            </div>
           <% end %>
         </div>
+        <%= if @has_sprites_connection do %>
+          <div class="flex flex-wrap gap-2 sm:gap-3">
+            <%= for sprite <- @sprites do %>
+              <.link
+                patch={~p"/sprites/#{sprite.id}"}
+                class={"border-2 px-2 py-1.5 sm:px-3 sm:py-2 hover:bg-white/5 transition-colors block cursor-pointer #{sprite_status_class(sprite.status)}"}
+              >
+                <div class="flex items-center gap-1.5 sm:gap-2">
+                  <span class={"text-base sm:text-lg #{sprite_indicator_class(sprite.status)}"}>◆</span>
+                  <span class="text-white text-[10px] sm:text-xs">{sprite.name}</span>
+                </div>
+                <div class={"text-[8px] mt-1 #{sprite_status_text_class(sprite.status)}"}>
+                  {sprite_status_label(sprite.status)}
+                </div>
+              </.link>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-6">
+            <p class="text-cyan-600 text-[10px] mb-3">- SPRITES CONNECTION REQUIRED -</p>
+            <p class="text-cyan-700 text-[8px] mb-4">
+              Connect to Sprites to sync and manage your fleet
+            </p>
+            <.link
+              patch={~p"/connections/add/sprites"}
+              class="arcade-btn border-green-500 text-green-400 text-[10px] py-2 px-4 inline-flex items-center gap-2"
+            >
+              <.sprites_icon />
+              <span>+ ADD SPRITES CONNECTION</span>
+            </.link>
+          </div>
+        <% end %>
       </section>
       
     <!-- Bottom Decoration -->
@@ -1300,6 +1334,32 @@ defmodule InvaderWeb.DashboardLive do
   defp sprite_indicator_class(:busy), do: "text-green-400 blink status-running"
   defp sprite_indicator_class(:offline), do: "text-red-400 status-failed"
   defp sprite_indicator_class(_), do: "text-cyan-600"
+
+  # 8-bit pixel art Sprites icon (Space Invader alien style)
+  defp sprites_icon(assigns) do
+    ~H"""
+    <svg viewBox="0 0 11 8" class="w-5 h-5 fill-current" style="image-rendering: pixelated;">
+      <rect x="2" y="0" width="1" height="1" />
+      <rect x="8" y="0" width="1" height="1" />
+      <rect x="3" y="1" width="1" height="1" />
+      <rect x="7" y="1" width="1" height="1" />
+      <rect x="2" y="2" width="7" height="1" />
+      <rect x="1" y="3" width="2" height="1" />
+      <rect x="4" y="3" width="3" height="1" />
+      <rect x="8" y="3" width="2" height="1" />
+      <rect x="0" y="4" width="11" height="1" />
+      <rect x="0" y="5" width="1" height="1" />
+      <rect x="2" y="5" width="7" height="1" />
+      <rect x="10" y="5" width="1" height="1" />
+      <rect x="0" y="6" width="1" height="1" />
+      <rect x="2" y="6" width="1" height="1" />
+      <rect x="8" y="6" width="1" height="1" />
+      <rect x="10" y="6" width="1" height="1" />
+      <rect x="3" y="7" width="2" height="1" />
+      <rect x="6" y="7" width="2" height="1" />
+    </svg>
+    """
+  end
 
   defp sprite_status_text_class(:available), do: "text-yellow-400"
   defp sprite_status_text_class(:busy), do: "text-green-400"

@@ -71,6 +71,7 @@ defmodule InvaderWeb.Router do
 
       # Connections modal route
       live "/connections", DashboardLive, :connections
+      live "/connections/add/:type", DashboardLive, :add_connection
     end
   end
 

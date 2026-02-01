@@ -206,14 +206,23 @@ defmodule InvaderWeb.ConnectionsComponent do
               <% end %>
 
               <div class="flex justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  phx-click="cancel_form"
-                  phx-target={@myself}
-                  class="arcade-btn border-cyan-600 text-cyan-400 text-[10px]"
-                >
-                  CANCEL
-                </button>
+                <%= if @add_connection_type do %>
+                  <.link
+                    patch={~p"/"}
+                    class="arcade-btn border-cyan-600 text-cyan-400 text-[10px]"
+                  >
+                    CANCEL
+                  </.link>
+                <% else %>
+                  <button
+                    type="button"
+                    phx-click="cancel_form"
+                    phx-target={@myself}
+                    class="arcade-btn border-cyan-600 text-cyan-400 text-[10px]"
+                  >
+                    CANCEL
+                  </button>
+                <% end %>
                 <button
                   type="submit"
                   phx-disable-with="SAVING..."
@@ -285,16 +294,26 @@ defmodule InvaderWeb.ConnectionsComponent do
     has_github = MapSet.member?(existing_types, :github)
     has_sprites = MapSet.member?(existing_types, :sprites)
 
+    # Check if we should auto-show form for a specific type
+    add_connection_type = assigns[:add_connection_type]
+    {show_form, selected_type} =
+      if add_connection_type && !socket.assigns[:editing_connection] do
+        {true, parse_type(add_connection_type)}
+      else
+        {socket.assigns[:show_form] || false, socket.assigns[:selected_type] || :github}
+      end
+
     {:ok,
      socket
      |> assign(assigns)
      |> assign(:connections, connections)
      |> assign(:has_github, has_github)
      |> assign(:has_sprites, has_sprites)
-     |> assign_new(:form, fn -> form end)
-     |> assign_new(:show_form, fn -> false end)
+     |> assign(:form, form)
+     |> assign(:show_form, show_form)
      |> assign_new(:editing_connection, fn -> nil end)
-     |> assign_new(:selected_type, fn -> :github end)}
+     |> assign(:selected_type, selected_type)
+     |> assign_new(:add_connection_type, fn -> nil end)}
   end
 
   @impl true
