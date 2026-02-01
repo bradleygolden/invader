@@ -183,7 +183,7 @@ ENVEOF
   done
   echo 'Warning: Application may still be starting.'
   exit 0
-"; then
+" < /dev/null; then
   DEPLOY_SUCCESS=true
 fi
 
