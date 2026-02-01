@@ -110,7 +110,8 @@ ADMIN_SETUP_TOKEN=$(openssl rand -hex 16)
 # Deploy app on sprite
 echo ""
 echo "Deploying Invader..."
-sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
+DEPLOY_SUCCESS=false
+if sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
   set -e
 
   # Try to download prebuilt release first
@@ -180,12 +181,16 @@ ENVEOF
     fi
     sleep 1
   done
-  echo 'Warning: Application may still be starting. Check logs if issues persist.'
-"
+  echo 'Warning: Application may still be starting.'
+  exit 0
+"; then
+  DEPLOY_SUCCESS=true
+fi
 
-# Make URL public only after app is running
+# Make URL public (always attempt this)
+echo ""
 echo "Making URL publicly accessible..."
-sprite url update -o "$ORG" -s "$SPRITE_NAME" --auth public
+sprite url update -o "$ORG" -s "$SPRITE_NAME" --auth public || true
 
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
