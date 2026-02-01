@@ -9,10 +9,7 @@ defmodule InvaderWeb.AuthController do
     |> redirect(to: ~p"/")
   end
 
-  def failure(conn, activity, reason) do
-    require Logger
-    Logger.error("OAuth failure - activity: #{inspect(activity)}, reason: #{inspect(reason)}")
-
+  def failure(conn, _activity, reason) do
     message =
       case reason do
         %Ash.Error.Invalid{errors: errors} ->
