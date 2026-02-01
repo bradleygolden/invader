@@ -8,6 +8,9 @@ BLUE='\033[0;34m'
 YELLOW='\033[0;33m'
 NC='\033[0m'
 
+REPO_URL="https://github.com/bradleygolden/invader.git"
+BRANCH="main"
+
 echo -e "${BLUE}🚀 Invader Installer${NC}"
 echo ""
 
@@ -26,8 +29,8 @@ ORGS=$(sprite org list 2>&1) || {
   exit 1
 }
 
-# Parse orgs (extract org names from output)
-ORG_LIST=($(echo "$ORGS" | grep -oE '^[a-zA-Z0-9_-]+' || true))
+# Parse orgs from numbered list format: "  1. org-name (via ...)"
+ORG_LIST=($(echo "$ORGS" | grep -E '^\s+[0-9]+\.' | sed 's/^[[:space:]]*[0-9]*\.[[:space:]]*//' | awk '{print $1}'))
 
 if [ ${#ORG_LIST[@]} -eq 0 ]; then
   echo -e "${RED}Error: No organizations found${NC}"
@@ -57,9 +60,15 @@ echo ""
 echo "Creating sprite: $SPRITE_NAME in org: $ORG"
 sprite create -o "$ORG" "$SPRITE_NAME"
 
-# Get public URL
+# Get public URL (extract just the URL from "URL: https://...")
 echo "Getting sprite URL..."
-PUBLIC_URL=$(sprite url -o "$ORG" -s "$SPRITE_NAME" | tr -d '[:space:]')
+URL_OUTPUT=$(sprite url -o "$ORG" -s "$SPRITE_NAME")
+PUBLIC_URL=$(echo "$URL_OUTPUT" | grep -oE 'https://[^ ]+')
+
+if [ -z "$PUBLIC_URL" ]; then
+  echo -e "${RED}Error: Could not get sprite URL${NC}"
+  exit 1
+fi
 
 # GitHub OAuth Setup
 echo ""
@@ -87,13 +96,36 @@ SECRET_KEY_BASE=$(openssl rand -base64 48)
 TOKEN_SIGNING_SECRET=$(openssl rand -base64 48)
 CLOAK_KEY=$(openssl rand -base64 32)
 
-# Deploy app
-echo "Deploying Invader..."
+# Build and deploy app on sprite
+echo ""
+echo "Building and deploying Invader (this may take a few minutes)..."
 sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
   set -e
 
-  # Download release
-  curl -fsSL https://github.com/bradleygolden/invader/releases/latest/download/invader.tar.gz | tar xz
+  echo 'Cloning repository...'
+  rm -rf invader-src
+  git clone --depth 1 --branch $BRANCH $REPO_URL invader-src
+  cd invader-src
+
+  echo 'Installing dependencies...'
+  mix local.hex --force
+  mix local.rebar --force
+  mix deps.get --only prod
+
+  echo 'Compiling application...'
+  MIX_ENV=prod mix compile
+
+  echo 'Building assets...'
+  MIX_ENV=prod mix assets.deploy
+
+  echo 'Creating release...'
+  MIX_ENV=prod mix release --overwrite
+
+  echo 'Installing release...'
+  cd ~
+  rm -rf invader
+  mv invader-src/_build/prod/rel/invader .
+  rm -rf invader-src
 
   # Write environment config
   cat > .env << ENVEOF
@@ -110,11 +142,17 @@ GITHUB_REDIRECT_URI=${PUBLIC_URL}/auth/user/github/callback
 ENVEOF
 
   # Source env and run migrations
+  echo 'Running migrations...'
   set -a && source .env && set +a
-  ./bin/invader eval 'Invader.Release.migrate()'
+  ./invader/bin/invader eval 'for repo <- Application.fetch_env!(:invader, :ecto_repos), do: Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))'
 
   # Start app in background
-  ./bin/invader daemon
+  echo 'Starting application...'
+  ./invader/bin/invader daemon
+
+  sleep 2
+  echo 'Verifying application is running...'
+  curl -sf http://localhost:8080/sign-in > /dev/null && echo 'Application started successfully!'
 "
 
 # Make URL public only after app is running
@@ -122,7 +160,9 @@ echo "Making URL publicly accessible..."
 sprite url update -o "$ORG" -s "$SPRITE_NAME" --auth public
 
 echo ""
-echo -e "${GREEN}✅ Invader deployed successfully!${NC}"
+echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}  ✅ Invader deployed successfully!${NC}"
+echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "Public URL: ${BLUE}${PUBLIC_URL}${NC}"
 echo ""
@@ -132,3 +172,6 @@ echo "  2. Sign in with GitHub (first user becomes admin)"
 echo ""
 echo -e "${YELLOW}To manage this sprite:${NC}"
 echo "  sprite exec -o $ORG -s $SPRITE_NAME -- <command>"
+echo ""
+echo -e "${YELLOW}To view logs:${NC}"
+echo "  sprite exec -o $ORG -s $SPRITE_NAME -- tail -f invader/tmp/log/erlang.log.1"
