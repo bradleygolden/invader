@@ -71,12 +71,14 @@ defmodule InvaderWeb.ConnectionsComponent do
             <% end %>
           <% end %>
         </div>
-
-        <!-- Add/Edit Connection Form -->
+        
+    <!-- Add/Edit Connection Form -->
         <div class="pt-4 border-t border-cyan-800">
           <%= if @show_form do %>
             <div class="text-cyan-500 text-[10px] mb-3">
-              {if @editing_connection, do: "EDIT CONNECTION", else: "ADD #{String.upcase(to_string(@selected_type))} CONNECTION"}
+              {if @editing_connection,
+                do: "EDIT CONNECTION",
+                else: "ADD #{String.upcase(to_string(@selected_type))} CONNECTION"}
             </div>
 
             <.form
@@ -133,7 +135,9 @@ defmodule InvaderWeb.ConnectionsComponent do
                     <p class="ml-3 text-cyan-500">
                       → Installation ID is the number in URL after install:
                     </p>
-                    <p class="ml-3 text-cyan-500">github.com/settings/installations/<span class="text-yellow-400">XXXXX</span></p>
+                    <p class="ml-3 text-cyan-500">
+                      github.com/settings/installations/<span class="text-yellow-400">XXXXX</span>
+                    </p>
                     <p>7. Copy App ID, Installation ID, and private key below</p>
                   </div>
                 </div>
@@ -266,7 +270,9 @@ defmodule InvaderWeb.ConnectionsComponent do
                     />
                     <%= if @editing_connection && @editing_connection.token do %>
                       <div class="flex items-center gap-2">
-                        <span class="text-cyan-700 text-[8px]">Leave blank to keep current token</span>
+                        <span class="text-cyan-700 text-[8px]">
+                          Leave blank to keep current token
+                        </span>
                         <button
                           type="button"
                           phx-click="hide_token_input"
@@ -334,7 +340,9 @@ defmodule InvaderWeb.ConnectionsComponent do
                 </button>
               <% end %>
               <%= if @has_github && @has_sprites do %>
-                <p class="text-cyan-600 text-center py-4 text-[10px]">- ALL CONNECTIONS CONFIGURED -</p>
+                <p class="text-cyan-600 text-center py-4 text-[10px]">
+                  - ALL CONNECTIONS CONFIGURED -
+                </p>
               <% end %>
             </div>
           <% end %>
@@ -372,6 +380,7 @@ defmodule InvaderWeb.ConnectionsComponent do
 
     # Check if we should auto-show form for a specific type
     add_connection_type = assigns[:add_connection_type]
+
     {show_form, selected_type} =
       if add_connection_type && !socket.assigns[:editing_connection] do
         {true, parse_type(add_connection_type)}
@@ -620,7 +629,11 @@ defmodule InvaderWeb.ConnectionsComponent do
   # 8-bit pixel art key icon
   defp key_icon(assigns) do
     ~H"""
-    <svg viewBox="0 0 16 16" class="w-6 h-6 fill-current text-green-400" style="image-rendering: pixelated;">
+    <svg
+      viewBox="0 0 16 16"
+      class="w-6 h-6 fill-current text-green-400"
+      style="image-rendering: pixelated;"
+    >
       <rect x="0" y="6" width="8" height="4" />
       <rect x="8" y="5" width="2" height="6" />
       <rect x="10" y="4" width="2" height="8" />
@@ -635,7 +648,11 @@ defmodule InvaderWeb.ConnectionsComponent do
   # 8-bit pixel art GitHub icon (octocat style)
   defp type_icon(%{type: :github} = assigns) do
     ~H"""
-    <svg viewBox="0 0 16 16" class="w-5 h-5 fill-current text-cyan-400" style="image-rendering: pixelated;">
+    <svg
+      viewBox="0 0 16 16"
+      class="w-5 h-5 fill-current text-cyan-400"
+      style="image-rendering: pixelated;"
+    >
       <!-- Head/body circle -->
       <rect x="4" y="1" width="8" height="1" />
       <rect x="3" y="2" width="10" height="1" />
@@ -669,7 +686,11 @@ defmodule InvaderWeb.ConnectionsComponent do
   # 8-bit pixel art Sprites icon (Space Invader alien style)
   defp type_icon(%{type: :sprites} = assigns) do
     ~H"""
-    <svg viewBox="0 0 11 8" class="w-5 h-5 fill-current text-green-400" style="image-rendering: pixelated;">
+    <svg
+      viewBox="0 0 11 8"
+      class="w-5 h-5 fill-current text-green-400"
+      style="image-rendering: pixelated;"
+    >
       <!-- Classic Space Invader shape -->
       <rect x="2" y="0" width="1" height="1" />
       <rect x="8" y="0" width="1" height="1" />
@@ -696,7 +717,11 @@ defmodule InvaderWeb.ConnectionsComponent do
   # Fallback link icon
   defp type_icon(assigns) do
     ~H"""
-    <svg viewBox="0 0 16 16" class="w-5 h-5 fill-current text-cyan-400" style="image-rendering: pixelated;">
+    <svg
+      viewBox="0 0 16 16"
+      class="w-5 h-5 fill-current text-cyan-400"
+      style="image-rendering: pixelated;"
+    >
       <rect x="2" y="6" width="4" height="4" />
       <rect x="6" y="7" width="4" height="2" />
       <rect x="10" y="6" width="4" height="4" />

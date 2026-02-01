@@ -694,7 +694,9 @@ defmodule InvaderWeb.DashboardLive do
         show
         on_cancel={JS.patch(~p"/")}
       >
-        <:title>{if @live_action == :add_connection, do: "ADD CONNECTION", else: "CONNECTIONS"}</:title>
+        <:title>
+          {if @live_action == :add_connection, do: "ADD CONNECTION", else: "CONNECTIONS"}
+        </:title>
         <.live_component
           module={InvaderWeb.ConnectionsComponent}
           id="connections-manager"
@@ -1264,7 +1266,9 @@ defmodule InvaderWeb.DashboardLive do
                 class={"border-2 px-2 py-1.5 sm:px-3 sm:py-2 hover:bg-white/5 transition-colors block cursor-pointer #{sprite_status_class(sprite.status)}"}
               >
                 <div class="flex items-center gap-1.5 sm:gap-2">
-                  <span class={"text-base sm:text-lg #{sprite_indicator_class(sprite.status)}"}>◆</span>
+                  <span class={"text-base sm:text-lg #{sprite_indicator_class(sprite.status)}"}>
+                    ◆
+                  </span>
                   <span class="text-white text-[10px] sm:text-xs">{sprite.name}</span>
                 </div>
                 <div class={"text-[8px] mt-1 #{sprite_status_text_class(sprite.status)}"}>

@@ -11,8 +11,18 @@ defmodule Invader.Accounts.User.Changes.SetGitHubAttributes do
   alias Invader.Accounts.User
 
   @impl true
-  def change(changeset, _opts, _context) do
+  def change(changeset, _opts, context) do
+    # Skip if this is already an update action (sign_in_with_github)
+    if changeset.action.type == :update do
+      set_github_attrs(changeset)
+    else
+      handle_create(changeset, context)
+    end
+  end
+
+  defp handle_create(changeset, _context) do
     user_info = Ash.Changeset.get_argument(changeset, :user_info)
+    oauth_tokens = Ash.Changeset.get_argument(changeset, :oauth_tokens)
     github_id = user_info["id"]
     github_login = user_info["login"]
 
@@ -31,13 +41,32 @@ defmodule Invader.Accounts.User.Changes.SetGitHubAttributes do
       end
 
     cond do
-      # Existing user by github_id - allow update
+      # Existing user by github_id - the upsert will handle this
       existing_by_id != nil ->
-        set_github_attrs(changeset, user_info, existing_by_id)
+        set_github_attrs(changeset)
 
-      # Pre-authorized by github_login - first-time sign-in, update existing user
-      pre_authorized != nil ->
-        set_github_attrs(changeset, user_info, pre_authorized)
+      # Pre-authorized by github_login but no github_id - update them directly
+      pre_authorized != nil && pre_authorized.github_id == nil ->
+        # Update the pre-authorized user with GitHub data
+        case Ash.update(pre_authorized, %{user_info: user_info, oauth_tokens: oauth_tokens},
+               action: :sign_in_with_github,
+               authorize?: false
+             ) do
+          {:ok, updated_user} ->
+            # Return the updated user by setting it on the changeset
+            # and marking the changeset as already handled
+            changeset
+            |> Ash.Changeset.force_change_attribute(:id, updated_user.id)
+            |> Ash.Changeset.force_change_attribute(:github_id, updated_user.github_id)
+            |> Ash.Changeset.force_change_attribute(:github_login, updated_user.github_login)
+            |> Ash.Changeset.force_change_attribute(:email, updated_user.email)
+            |> Ash.Changeset.force_change_attribute(:name, updated_user.name)
+            |> Ash.Changeset.force_change_attribute(:avatar_url, updated_user.avatar_url)
+            |> Ash.Changeset.force_change_attribute(:is_admin, updated_user.is_admin)
+
+          {:error, error} ->
+            Ash.Changeset.add_error(changeset, error)
+        end
 
       # Unknown user - reject
       true ->
@@ -51,7 +80,9 @@ defmodule Invader.Accounts.User.Changes.SetGitHubAttributes do
     end
   end
 
-  defp set_github_attrs(changeset, user_info, existing_user) do
+  defp set_github_attrs(changeset) do
+    user_info = Ash.Changeset.get_argument(changeset, :user_info)
+
     attrs = %{
       github_id: user_info["id"],
       github_login: user_info["login"],
@@ -60,9 +91,6 @@ defmodule Invader.Accounts.User.Changes.SetGitHubAttributes do
       avatar_url: user_info["avatar_url"]
     }
 
-    # Force upsert to find the existing user by setting their github_id on the record
-    changeset
-    |> Ash.Changeset.force_change_attribute(:id, existing_user.id)
-    |> Ash.Changeset.change_attributes(attrs)
+    Ash.Changeset.change_attributes(changeset, attrs)
   end
 end

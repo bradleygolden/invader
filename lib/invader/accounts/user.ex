@@ -81,6 +81,16 @@ defmodule Invader.Accounts.User do
       accept [:email, :name, :is_admin]
     end
 
+    update :sign_in_with_github do
+      description "Update user with GitHub OAuth data on sign-in"
+      argument :user_info, :map, allow_nil?: false
+      argument :oauth_tokens, :map, allow_nil?: false
+      require_atomic? false
+
+      change AshAuthentication.GenerateTokenChange
+      change Invader.Accounts.User.Changes.SetGitHubAttributes
+    end
+
     destroy :destroy do
       description "Admin action to remove a user"
     end
