@@ -10,6 +10,10 @@ defmodule Invader.Accounts.User.Preparations.UpdateGitHubAttributes do
 
   @impl true
   def prepare(query, _opts, _context) do
+    require Logger
+    user_info = Ash.Query.get_argument(query, :user_info)
+    Logger.info("OAuth user_info: #{inspect(user_info)}")
+
     Ash.Query.after_action(query, fn _query, results ->
       user_info = Ash.Query.get_argument(query, :user_info)
 
