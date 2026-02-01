@@ -44,3 +44,6 @@ npm-debug.log
 
 # Compiled binary
 /invade
+
+# Sprite CLI state
+.sprite
