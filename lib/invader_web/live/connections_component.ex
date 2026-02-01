@@ -108,15 +108,29 @@ defmodule InvaderWeb.ConnectionsComponent do
                         Create a new GitHub App →
                       </a>
                     </p>
-                    <p>2. Set these permissions:</p>
+                    <p>2. Set Homepage URL to:</p>
+                    <div class="flex items-center gap-2 ml-3 my-1">
+                      <code class="bg-black/50 px-2 py-1 text-cyan-300 font-mono">{@app_url}</code>
+                      <button
+                        type="button"
+                        phx-hook="CopyToClipboard"
+                        id="copy-homepage-url"
+                        data-clipboard-text={@app_url}
+                        class="text-cyan-400 hover:text-cyan-300 text-[8px]"
+                        title="Copy to clipboard"
+                      >
+                        [COPY]
+                      </button>
+                    </div>
+                    <p>3. Set these permissions:</p>
                     <p class="ml-3">• Contents (Read & Write)</p>
                     <p class="ml-3">• Issues (Read & Write)</p>
                     <p class="ml-3">• Pull requests (Read & Write)</p>
                     <p class="ml-3">• Metadata (Read-only)</p>
-                    <p>3. Uncheck "Webhook → Active"</p>
-                    <p>4. Create app, then generate private key (.pem file)</p>
-                    <p>5. Install app on your repos (note Installation ID from URL)</p>
-                    <p>6. Copy App ID, Installation ID, and private key below</p>
+                    <p>4. Uncheck "Webhook → Active"</p>
+                    <p>5. Create app, then generate private key (.pem file)</p>
+                    <p>6. Install app on your repos (note Installation ID from URL)</p>
+                    <p>7. Copy App ID, Installation ID, and private key below</p>
                   </div>
                 </div>
 
@@ -298,7 +312,8 @@ defmodule InvaderWeb.ConnectionsComponent do
      |> assign(:show_form, show_form)
      |> assign_new(:editing_connection, fn -> nil end)
      |> assign(:selected_type, selected_type)
-     |> assign_new(:add_connection_type, fn -> nil end)}
+     |> assign_new(:add_connection_type, fn -> nil end)
+     |> assign(:app_url, InvaderWeb.Endpoint.url())}
   end
 
   @impl true
