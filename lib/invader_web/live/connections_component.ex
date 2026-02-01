@@ -90,19 +90,6 @@ defmodule InvaderWeb.ConnectionsComponent do
               <input type="hidden" name={@form[:type].name} value={@selected_type} />
 
               <%= if @selected_type == :github do %>
-                <div class="space-y-2">
-                  <label class="text-cyan-500 text-[10px] block">NAME</label>
-                  <input
-                    type="text"
-                    name={@form[:name].name}
-                    value={@form[:name].value}
-                    placeholder="My GitHub Connection"
-                    class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
-                  />
-                </div>
-              <% end %>
-
-              <%= if @selected_type == :github do %>
                 <!-- GitHub Setup Instructions -->
                 <div class="border border-cyan-800 p-3 bg-cyan-900/10">
                   <div class="text-cyan-400 text-[10px] mb-2 flex items-center gap-2">
@@ -347,10 +334,14 @@ defmodule InvaderWeb.ConnectionsComponent do
 
   @impl true
   def handle_event("save_connection", %{"connection" => params}, socket) do
-    # Auto-set name for Sprites connections
+    # Auto-set name based on connection type
     params =
-      if params["type"] == "sprites" && (params["name"] == "" || params["name"] == nil) do
-        Map.put(params, "name", "Sprites")
+      if params["name"] == "" || params["name"] == nil do
+        case params["type"] do
+          "sprites" -> Map.put(params, "name", "Sprites")
+          "github" -> Map.put(params, "name", "GitHub")
+          _ -> params
+        end
       else
         params
       end
