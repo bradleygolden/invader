@@ -72,6 +72,9 @@ defmodule InvaderWeb.Router do
       # Connections modal route
       live "/connections", DashboardLive, :connections
       live "/connections/add/:type", DashboardLive, :add_connection
+
+      # Scope presets management
+      live "/scopes", ScopePresetsLive, :index
     end
   end
 
@@ -98,6 +101,7 @@ defmodule InvaderWeb.Router do
 
     get "/invader.sh", CliController, :invader_script
     get "/install.sh", CliController, :install_script
+    get "/update.sh", CliController, :update_script
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

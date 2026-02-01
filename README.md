@@ -24,6 +24,22 @@ curl -fsSL https://raw.githubusercontent.com/bradleygolden/invader/main/install.
 
 The first user to sign in with the setup token becomes the admin.
 
+## Updating
+
+Update an existing Invader deployment:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bradleygolden/invader/main/update.sh | bash
+```
+
+This preserves your database and configuration while updating the application.
+
+To update to a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bradleygolden/invader/main/update.sh | bash -s -- v0.4.12
+```
+
 ## Local Development
 
 ```bash
