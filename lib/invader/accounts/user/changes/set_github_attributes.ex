@@ -17,11 +17,18 @@ defmodule Invader.Accounts.User.Changes.SetGitHubAttributes do
     github_login = user_info["login"]
 
     # Check if this GitHub user exists by ID (returning user)
-    existing_by_id = User.get_by_github_id(github_id, authorize?: false, not_found_error?: false)
+    existing_by_id =
+      case User.get_by_github_id(github_id, authorize?: false, not_found_error?: false) do
+        {:ok, user} -> user
+        _ -> nil
+      end
 
     # Check if pre-authorized by github_login (first-time sign-in)
     pre_authorized =
-      User.get_by_github_login(github_login, authorize?: false, not_found_error?: false)
+      case User.get_by_github_login(github_login, authorize?: false, not_found_error?: false) do
+        {:ok, user} -> user
+        _ -> nil
+      end
 
     cond do
       # Existing user by github_id - allow update
