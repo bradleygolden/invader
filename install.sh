@@ -46,7 +46,7 @@ else
     echo "  $((i+1)). ${ORG_LIST[$i]}"
   done
   echo ""
-  read -p "Select organization [1]: " ORG_NUM
+  read -p "Select organization [1]: " ORG_NUM < /dev/tty
   ORG_NUM=${ORG_NUM:-1}
   ORG="${ORG_LIST[$((ORG_NUM-1))]}"
 fi
@@ -54,7 +54,7 @@ fi
 # Prompt for sprite name
 DEFAULT_NAME="invader-$(openssl rand -hex 4)"
 echo ""
-read -p "Sprite name [$DEFAULT_NAME]: " SPRITE_NAME
+read -p "Sprite name [$DEFAULT_NAME]: " SPRITE_NAME < /dev/tty
 SPRITE_NAME=${SPRITE_NAME:-$DEFAULT_NAME}
 
 echo ""
@@ -87,8 +87,8 @@ echo -e "  Authorization callback URL: ${YELLOW}${PUBLIC_URL}/auth/user/github/c
 echo ""
 echo "After creating the app, enter the credentials below:"
 echo ""
-read -p "GitHub Client ID: " GITHUB_CLIENT_ID
-read -sp "GitHub Client Secret: " GITHUB_CLIENT_SECRET
+read -p "GitHub Client ID: " GITHUB_CLIENT_ID < /dev/tty
+read -sp "GitHub Client Secret: " GITHUB_CLIENT_SECRET < /dev/tty
 echo ""
 
 # Generate secrets
