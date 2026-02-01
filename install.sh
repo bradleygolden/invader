@@ -107,6 +107,39 @@ TOKEN_SIGNING_SECRET=$(openssl rand -base64 48)
 CLOAK_KEY=$(openssl rand -base64 32)
 ADMIN_SETUP_TOKEN=$(openssl rand -hex 16)
 
+# Function to show final output (called at end or on exit)
+show_final_output() {
+  echo ""
+  echo "Making URL publicly accessible..."
+  sprite url update -o "$ORG" -s "$SPRITE_NAME" --auth public 2>/dev/null || true
+
+  echo ""
+  echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${GREEN}  ✅ Invader deployed!${NC}"
+  echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
+  echo ""
+  echo -e "Public URL: ${BLUE}${PUBLIC_URL}${NC}"
+  echo ""
+  echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${YELLOW}  IMPORTANT: Save this admin setup token!${NC}"
+  echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+  echo ""
+  echo -e "  Setup Token: ${GREEN}${ADMIN_SETUP_TOKEN}${NC}"
+  echo ""
+  echo -e "  Setup link: ${GREEN}${PUBLIC_URL}/admin/setup?token=${ADMIN_SETUP_TOKEN}${NC}"
+  echo ""
+  echo "Next steps:"
+  echo "  1. Click the setup link above"
+  echo "  2. Enter your GitHub username"
+  echo "  3. Sign in with GitHub to activate your admin account"
+  echo ""
+  echo -e "${YELLOW}To manage this sprite:${NC}"
+  echo "  sprite exec -o $ORG -s $SPRITE_NAME -- <command>"
+  echo ""
+  echo -e "${YELLOW}To view logs:${NC}"
+  echo "  sprite exec -o $ORG -s $SPRITE_NAME -- tail -f invader/tmp/log/erlang.log.1"
+}
+
 # Deploy app on sprite
 echo ""
 echo "Deploying Invader..."
@@ -183,40 +216,8 @@ ENVEOF
   done
   echo 'Warning: Application may still be starting.'
   exit 0
-" < /dev/null; then
-  DEPLOY_SUCCESS=true
-fi
+" < /dev/null
+DEPLOY_EXIT_CODE=$?
 
-# Make URL public (always attempt this)
-echo ""
-echo "Making URL publicly accessible..."
-sprite url update -o "$ORG" -s "$SPRITE_NAME" --auth public || true
-
-echo ""
-echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  ✅ Invader deployed successfully!${NC}"
-echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
-echo ""
-echo -e "Public URL: ${BLUE}${PUBLIC_URL}${NC}"
-echo ""
-echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${YELLOW}  IMPORTANT: Save this admin setup token!${NC}"
-echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
-echo ""
-echo -e "  Setup Token: ${GREEN}${ADMIN_SETUP_TOKEN}${NC}"
-echo ""
-echo "  You'll need this token to complete the first-time admin setup."
-echo "  This token is only needed once and cannot be recovered."
-echo ""
-echo -e "  Setup link: ${GREEN}${PUBLIC_URL}/admin/setup?token=${ADMIN_SETUP_TOKEN}${NC}"
-echo ""
-echo "Next steps:"
-echo "  1. Click the setup link above (or visit $PUBLIC_URL/admin/setup)"
-echo "  2. Enter your GitHub username"
-echo "  3. Sign in with GitHub to activate your admin account"
-echo ""
-echo -e "${YELLOW}To manage this sprite:${NC}"
-echo "  sprite exec -o $ORG -s $SPRITE_NAME -- <command>"
-echo ""
-echo -e "${YELLOW}To view logs:${NC}"
-echo "  sprite exec -o $ORG -s $SPRITE_NAME -- tail -f invader/tmp/log/erlang.log.1"
+# Always show final output
+show_final_output
