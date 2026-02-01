@@ -150,9 +150,15 @@ ENVEOF
   echo 'Starting application...'
   ./invader/bin/invader daemon
 
-  sleep 2
-  echo 'Verifying application is running...'
-  curl -sf http://localhost:8080/sign-in > /dev/null && echo 'Application started successfully!'
+  echo 'Waiting for application to start...'
+  for i in {1..30}; do
+    if curl -sf http://localhost:8080/sign-in > /dev/null 2>&1; then
+      echo 'Application started successfully!'
+      exit 0
+    fi
+    sleep 1
+  done
+  echo 'Warning: Application may still be starting. Check logs if issues persist.'
 "
 
 # Make URL public only after app is running
