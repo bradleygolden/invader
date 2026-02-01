@@ -122,11 +122,11 @@ defmodule InvaderWeb.ConnectionsComponent do
                         [COPY]
                       </button>
                     </div>
-                    <p>3. Set these permissions:</p>
-                    <p class="ml-3">• Contents (Read & Write)</p>
-                    <p class="ml-3">• Issues (Read & Write)</p>
-                    <p class="ml-3">• Pull requests (Read & Write)</p>
-                    <p class="ml-3">• Metadata (Read-only)</p>
+                    <p>3. Under "Repository permissions", set:</p>
+                    <p class="ml-3">• Contents: Read & Write</p>
+                    <p class="ml-3">• Issues: Read & Write</p>
+                    <p class="ml-3">• Pull requests: Read & Write</p>
+                    <p class="ml-3">• Metadata: Read-only</p>
                     <p>4. Uncheck "Webhook → Active"</p>
                     <p>5. Create app, then generate private key (.pem file)</p>
                     <p>6. Install app on your repos (note Installation ID from URL)</p>
