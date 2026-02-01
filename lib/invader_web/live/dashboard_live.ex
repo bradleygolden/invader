@@ -31,6 +31,7 @@ defmodule InvaderWeb.DashboardLive do
       |> assign(:time_format, Invader.Settings.time_format())
       |> assign(:scores_page, 1)
       |> assign(:scores_per_page, @scores_per_page)
+      |> assign(:show_profile_menu, false)
       |> load_data()
 
     {:ok, socket}
@@ -446,6 +447,16 @@ defmodule InvaderWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("toggle_profile_menu", _params, socket) do
+    {:noreply, assign(socket, :show_profile_menu, !socket.assigns.show_profile_menu)}
+  end
+
+  @impl true
+  def handle_event("close_profile_menu", _params, socket) do
+    {:noreply, assign(socket, :show_profile_menu, false)}
+  end
+
+  @impl true
   def handle_event("scores_page", %{"page" => page}, socket) do
     page = String.to_integer(page)
     total_pages = socket.assigns.scores_total_pages
@@ -746,28 +757,91 @@ defmodule InvaderWeb.DashboardLive do
               <rect x="7" y="10" width="2" height="2" />
             </svg>
           </.link>
-          <.link
-            patch={~p"/settings"}
-            class="arcade-btn border-cyan-700 text-cyan-500 p-1.5 hover:border-cyan-400 hover:text-cyan-400"
-            title="Settings"
-          >
-            <svg
-              viewBox="0 0 16 16"
-              class="w-5 h-5 fill-current"
-              style="image-rendering: pixelated;"
+          <!-- Profile Dropdown -->
+          <div class="relative">
+            <button
+              phx-click="toggle_profile_menu"
+              class={"arcade-btn p-1.5 hover:border-cyan-400 hover:text-cyan-400 " <> if(@show_profile_menu, do: "border-cyan-400 text-cyan-400", else: "border-cyan-700 text-cyan-500")}
+              title="Profile"
             >
-              <rect x="6" y="0" width="4" height="2" />
-              <rect x="6" y="14" width="4" height="2" />
-              <rect x="0" y="6" width="2" height="4" />
-              <rect x="14" y="6" width="2" height="4" />
-              <rect x="2" y="2" width="2" height="2" />
-              <rect x="12" y="2" width="2" height="2" />
-              <rect x="2" y="12" width="2" height="2" />
-              <rect x="12" y="12" width="2" height="2" />
-              <rect x="4" y="4" width="8" height="8" />
-              <rect x="6" y="6" width="4" height="4" class="fill-black" />
-            </svg>
-          </.link>
+              <!-- Player/Profile Icon (8-bit style person) -->
+              <svg
+                viewBox="0 0 16 16"
+                class="w-5 h-5 fill-current"
+                style="image-rendering: pixelated;"
+              >
+                <rect x="5" y="1" width="6" height="6" />
+                <rect x="6" y="3" width="1" height="2" class="fill-black" />
+                <rect x="9" y="3" width="1" height="2" class="fill-black" />
+                <rect x="3" y="8" width="10" height="2" />
+                <rect x="5" y="10" width="6" height="4" />
+                <rect x="4" y="14" width="3" height="2" />
+                <rect x="9" y="14" width="3" height="2" />
+              </svg>
+            </button>
+            <!-- Dropdown Menu -->
+            <div
+              :if={@show_profile_menu}
+              phx-click-away="close_profile_menu"
+              class="absolute right-0 top-full mt-1 w-56 bg-black border border-cyan-700 p-0 z-50"
+            >
+              <div class="p-3 border-b border-cyan-800 bg-black">
+                <div class="text-[8px] text-cyan-700 uppercase tracking-wider">Signed in as</div>
+                <div class="text-cyan-400 text-[10px] truncate mt-1">
+                  {@current_user.name || @current_user.email}
+                </div>
+              </div>
+              <div class="p-1 bg-black">
+                <.link
+                  patch={~p"/settings"}
+                  phx-click={JS.push("close_profile_menu")}
+                  class="flex items-center w-full text-left px-3 py-2 text-[10px] text-cyan-500 hover:bg-cyan-900/50 hover:text-cyan-400 transition-colors"
+                >
+                  <!-- 8-bit Gear Icon -->
+                  <svg
+                    viewBox="0 0 16 16"
+                    class="w-4 h-4 fill-current mr-2"
+                    style="image-rendering: pixelated;"
+                  >
+                    <rect x="6" y="0" width="4" height="2" />
+                    <rect x="6" y="14" width="4" height="2" />
+                    <rect x="0" y="6" width="2" height="4" />
+                    <rect x="14" y="6" width="2" height="4" />
+                    <rect x="2" y="2" width="2" height="2" />
+                    <rect x="12" y="2" width="2" height="2" />
+                    <rect x="2" y="12" width="2" height="2" />
+                    <rect x="12" y="12" width="2" height="2" />
+                    <rect x="4" y="4" width="8" height="8" />
+                    <rect x="6" y="6" width="4" height="4" class="fill-black" />
+                  </svg>
+                  SETTINGS
+                </.link>
+                <.link
+                  href={~p"/sign-out"}
+                  class="flex items-center w-full text-left px-3 py-2 text-[10px] text-red-500 hover:bg-red-900/50 hover:text-red-400 transition-colors"
+                >
+                  <!-- 8-bit Power Icon -->
+                  <svg
+                    viewBox="0 0 16 16"
+                    class="w-4 h-4 fill-current mr-2"
+                    style="image-rendering: pixelated;"
+                  >
+                    <rect x="7" y="1" width="2" height="6" />
+                    <rect x="4" y="3" width="2" height="2" />
+                    <rect x="10" y="3" width="2" height="2" />
+                    <rect x="2" y="5" width="2" height="4" />
+                    <rect x="12" y="5" width="2" height="4" />
+                    <rect x="2" y="9" width="2" height="2" />
+                    <rect x="12" y="9" width="2" height="2" />
+                    <rect x="4" y="11" width="2" height="2" />
+                    <rect x="10" y="11" width="2" height="2" />
+                    <rect x="6" y="13" width="4" height="2" />
+                  </svg>
+                  SIGN OUT
+                </.link>
+              </div>
+            </div>
+          </div>
         </div>
         <h1 class="text-3xl md:text-4xl font-bold tracking-widest arcade-glow">
           INVADER

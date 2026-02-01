@@ -16,6 +16,7 @@ defmodule Invader.Accounts.User do
       enabled? true
       token_resource Invader.Accounts.Token
       require_token_presence_for_authentication? true
+      store_all_tokens? true
 
       signing_secret fn _, _ ->
         Application.fetch_env(:invader, :token_signing_secret)
@@ -28,6 +29,17 @@ defmodule Invader.Accounts.User do
         client_secret Invader.Secrets
         redirect_uri Invader.Secrets
       end
+
+      magic_link do
+        identity_field :email
+        single_use_token? true
+        # Note: require_interaction? false to avoid CSRF issues with default confirmation page
+        require_interaction? false
+
+        sender fn user_or_email, token, _opts ->
+          Invader.Accounts.Emails.send_magic_link(user_or_email, token)
+        end
+      end
     end
   end
 
@@ -37,6 +49,8 @@ defmodule Invader.Accounts.User do
 
   code_interface do
     define :get_by_github_id, action: :read, get_by: [:github_id]
+    define :get_by_github_login, action: :read, get_by: [:github_login]
+    define :get_by_email, action: :read, get_by: [:email]
     define :count_users, action: :count_all
   end
 
@@ -90,12 +104,12 @@ defmodule Invader.Accounts.User do
     uuid_primary_key :id
 
     attribute :github_id, :integer do
-      allow_nil? false
+      allow_nil? true
       public? true
     end
 
     attribute :github_login, :string do
-      allow_nil? false
+      allow_nil? true
       public? true
     end
 
@@ -125,5 +139,6 @@ defmodule Invader.Accounts.User do
 
   identities do
     identity :unique_github_id, [:github_id]
+    identity :unique_email, [:email]
   end
 end

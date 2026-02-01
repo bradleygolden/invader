@@ -10,6 +10,16 @@ defmodule InvaderWeb.LiveUserAuth do
   import Phoenix.Component
   import Phoenix.LiveView
 
+  def on_mount(:redirect_if_authenticated, _params, session, socket) do
+    socket = AshAuthentication.Phoenix.LiveSession.assign_new_resources(socket, session)
+
+    if socket.assigns[:current_user] do
+      {:halt, redirect(socket, to: ~p"/")}
+    else
+      {:cont, socket}
+    end
+  end
+
   def on_mount(:live_user_optional, _params, _session, socket) do
     if socket.assigns[:current_user] do
       {:cont, socket}

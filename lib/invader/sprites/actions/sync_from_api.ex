@@ -20,21 +20,39 @@ defmodule Invader.Sprites.Actions.SyncFromApi do
   end
 
   defp sync_sprites(sprites_data) do
-    Enum.map(sprites_data, fn sprite_data ->
-      name = sprite_data["name"] || sprite_data[:name]
-      org = sprite_data["organization"] || sprite_data[:organization]
-      status = parse_status(sprite_data["status"] || sprite_data[:status])
+    # Get all local sprite names before syncing
+    local_sprites = Invader.Sprites.Sprite.list!()
+    local_names = MapSet.new(local_sprites, & &1.name)
 
-      case Invader.Sprites.Sprite.get_by_name(name) do
-        {:ok, existing} ->
-          existing
-          |> Ash.Changeset.for_update(:update, %{org: org, status: status})
-          |> Ash.update!()
+    # Sync sprites from API and track synced names
+    {synced_sprites, synced_names} =
+      Enum.map_reduce(sprites_data, MapSet.new(), fn sprite_data, acc ->
+        name = sprite_data["name"] || sprite_data[:name]
+        org = sprite_data["organization"] || sprite_data[:organization]
+        status = parse_status(sprite_data["status"] || sprite_data[:status])
 
-        {:error, _} ->
-          Invader.Sprites.Sprite.create!(%{name: name, org: org, status: status})
-      end
-    end)
+        sprite =
+          case Invader.Sprites.Sprite.get_by_name(name) do
+            {:ok, existing} ->
+              existing
+              |> Ash.Changeset.for_update(:update, %{org: org, status: status})
+              |> Ash.update!()
+
+            {:error, _} ->
+              Invader.Sprites.Sprite.create!(%{name: name, org: org, status: status})
+          end
+
+        {sprite, MapSet.put(acc, name)}
+      end)
+
+    # Delete local sprites that no longer exist in the API
+    names_to_delete = MapSet.difference(local_names, synced_names)
+
+    for sprite <- local_sprites, sprite.name in names_to_delete do
+      Ash.destroy!(sprite)
+    end
+
+    synced_sprites
   end
 
   defp parse_status("running"), do: :available

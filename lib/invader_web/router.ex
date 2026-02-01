@@ -21,12 +21,27 @@ defmodule InvaderWeb.Router do
   scope "/", InvaderWeb do
     pipe_through :browser
 
-    sign_in_route(auth_routes_prefix: "/auth", live_view: InvaderWeb.SignInLive)
-    sign_out_route AuthController
-    auth_routes AuthController, Invader.Accounts.User, path: "/auth"
-
-    # Admin setup token validation
+    # Admin setup routes - must be before auth_routes to avoid being shadowed
     get "/auth/setup/validate", SetupController, :validate
+    post "/auth/setup/create-admin", SetupController, :create_admin
+
+    sign_in_route(
+      auth_routes_prefix: "/auth",
+      live_view: InvaderWeb.SignInLive,
+      on_mount_prepend: [{InvaderWeb.LiveUserAuth, :redirect_if_authenticated}]
+    )
+
+    sign_out_route AuthController
+
+    # Magic link sign-in route (must be before auth_routes)
+    magic_sign_in_route(
+      Invader.Accounts.User,
+      :magic_link,
+      auth_routes_prefix: "/auth",
+      path: "/auth/user/magic_link"
+    )
+
+    auth_routes AuthController, Invader.Accounts.User, path: "/auth"
   end
 
   # Protected routes - require authentication

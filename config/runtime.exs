@@ -42,6 +42,17 @@ if admin_setup_token = System.get_env("ADMIN_SETUP_TOKEN") do
   config :invader, :admin_setup_token, admin_setup_token
 end
 
+# Magic link auth - enabled in dev, disabled in prod unless explicitly set
+magic_link_enabled =
+  case {config_env(), System.get_env("ENABLE_MAGIC_LINK")} do
+    {:prod, "true"} -> true
+    {:prod, _} -> false
+    {_, "false"} -> false
+    {_, _} -> true
+  end
+
+config :invader, :magic_link_enabled, magic_link_enabled
+
 # GitHub redirect URI - construct from host
 github_redirect_uri =
   case {config_env(), System.get_env("PHX_HOST")} do
