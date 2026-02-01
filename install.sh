@@ -9,6 +9,7 @@ YELLOW='\033[0;33m'
 NC='\033[0m'
 
 REPO_URL="https://github.com/bradleygolden/invader.git"
+RELEASE_URL="https://github.com/bradleygolden/invader/releases/latest/download/invader.tar.gz"
 BRANCH="main"
 
 echo -e "${BLUE}🚀 Invader Installer${NC}"
@@ -96,36 +97,46 @@ SECRET_KEY_BASE=$(openssl rand -base64 48)
 TOKEN_SIGNING_SECRET=$(openssl rand -base64 48)
 CLOAK_KEY=$(openssl rand -base64 32)
 
-# Build and deploy app on sprite
+# Deploy app on sprite
 echo ""
-echo "Building and deploying Invader (this may take a few minutes)..."
+echo "Deploying Invader..."
 sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
   set -e
 
-  echo 'Cloning repository...'
-  rm -rf invader-src
-  git clone --depth 1 --branch $BRANCH $REPO_URL invader-src
-  cd invader-src
+  # Try to download prebuilt release first
+  echo 'Downloading release...'
+  if curl -fsSL $RELEASE_URL -o invader.tar.gz 2>/dev/null; then
+    echo 'Extracting release...'
+    tar xzf invader.tar.gz
+    rm invader.tar.gz
+  else
+    echo 'No prebuilt release available, building from source (this may take a few minutes)...'
 
-  echo 'Installing dependencies...'
-  mix local.hex --force
-  mix local.rebar --force
-  mix deps.get --only prod
+    echo 'Cloning repository...'
+    rm -rf invader-src
+    git clone --depth 1 --branch $BRANCH $REPO_URL invader-src
+    cd invader-src
 
-  echo 'Compiling application...'
-  MIX_ENV=prod mix compile
+    echo 'Installing dependencies...'
+    mix local.hex --force
+    mix local.rebar --force
+    mix deps.get --only prod
 
-  echo 'Building assets...'
-  MIX_ENV=prod mix assets.deploy
+    echo 'Compiling application...'
+    MIX_ENV=prod mix compile
 
-  echo 'Creating release...'
-  MIX_ENV=prod mix release --overwrite
+    echo 'Building assets...'
+    MIX_ENV=prod mix assets.deploy
 
-  echo 'Installing release...'
-  cd ~
-  rm -rf invader
-  mv invader-src/_build/prod/rel/invader .
-  rm -rf invader-src
+    echo 'Creating release...'
+    MIX_ENV=prod mix release --overwrite
+
+    echo 'Installing release...'
+    cd ~
+    rm -rf invader
+    mv invader-src/_build/prod/rel/invader .
+    rm -rf invader-src
+  fi
 
   # Write environment config
   cat > .env << ENVEOF
