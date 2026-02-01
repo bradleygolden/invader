@@ -66,7 +66,8 @@ config :invader,
     Invader.Saves,
     Invader.Loadouts,
     Invader.Connections,
-    Invader.Accounts
+    Invader.Accounts,
+    Invader.Scopes
   ]
 
 # Configure the endpoint
