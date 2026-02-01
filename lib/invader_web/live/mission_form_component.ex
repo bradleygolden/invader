@@ -7,6 +7,7 @@ defmodule InvaderWeb.MissionFormComponent do
   alias Invader.Missions.Mission
   alias Invader.Sprites.Sprite
   alias Invader.Loadouts.Loadout
+  alias Invader.Scopes.ScopePreset
   alias Invader.Settings
   alias InvaderWeb.TimezoneHelper
 
@@ -397,6 +398,117 @@ defmodule InvaderWeb.MissionFormComponent do
           </div>
         </div>
         
+    <!-- Scopes Section -->
+        <div class="space-y-4 pt-4 border-t border-cyan-800">
+          <div class="flex items-center justify-between">
+            <label class="text-cyan-500 text-[10px]">CLI SCOPES</label>
+            <InvaderWeb.ScopeComponents.scope_badge count={length(@selected_scopes)} />
+          </div>
+          
+    <!-- Preset Selector -->
+          <div class="space-y-2">
+            <label class="text-cyan-500 text-[10px] block">PRESET</label>
+            <select
+              name="scope_preset_id"
+              phx-change="select_scope_preset"
+              phx-target={@myself}
+              class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+            >
+              <option value="">-- Custom Scopes --</option>
+              <%= for preset <- @scope_presets do %>
+                <option
+                  value={preset.id}
+                  selected={to_string(@scope_preset_id) == to_string(preset.id)}
+                >
+                  {preset.name}
+                  <%= if preset.is_system do %>
+                    (System)
+                  <% end %>
+                </option>
+              <% end %>
+            </select>
+          </div>
+          
+    <!-- Custom Scopes Toggle -->
+          <div :if={is_nil(@scope_preset_id) or @scope_preset_id == ""} class="space-y-3">
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                phx-click="toggle_scope_editor"
+                phx-target={@myself}
+                class={"arcade-btn text-[8px] py-1 px-2 #{if @show_scope_editor, do: "border-cyan-400 text-cyan-400", else: "border-cyan-800 text-cyan-600"}"}
+              >
+                {if @show_scope_editor, do: "HIDE EDITOR", else: "SHOW EDITOR"}
+              </button>
+              <span class="text-cyan-700 text-[8px]">
+                {length(@selected_scopes)} scopes selected
+              </span>
+            </div>
+
+            <div :if={@show_scope_editor} class="space-y-3 p-3 border border-cyan-900 bg-gray-900/50">
+              <!-- Category toggles -->
+              <div class="flex flex-wrap gap-2">
+                <%= for category <- ["pr", "issue", "repo"] do %>
+                  <button
+                    type="button"
+                    phx-click="toggle_scope_category"
+                    phx-value-category={category}
+                    phx-target={@myself}
+                    class={"arcade-btn text-[8px] py-1 px-2 #{if category_has_scopes?(category, @selected_scopes), do: "border-cyan-400 text-cyan-400 bg-cyan-900/30", else: "border-cyan-800 text-cyan-600"}"}
+                  >
+                    {String.upcase(category)}
+                  </button>
+                <% end %>
+              </div>
+              
+    <!-- Selected scopes display -->
+              <div :if={@selected_scopes != []} class="flex flex-wrap gap-1">
+                <%= for scope <- @selected_scopes do %>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[8px] bg-cyan-900/50 border border-cyan-700 text-cyan-400">
+                    {scope}
+                    <button
+                      type="button"
+                      phx-click="remove_scope"
+                      phx-value-scope={scope}
+                      phx-target={@myself}
+                      class="text-cyan-600 hover:text-red-400"
+                    >
+                      x
+                    </button>
+                  </span>
+                <% end %>
+              </div>
+              
+    <!-- Full access shortcut -->
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  phx-click="set_full_access"
+                  phx-target={@myself}
+                  class="arcade-btn text-[8px] py-1 px-2 border-green-800 text-green-600 hover:border-green-400 hover:text-green-400"
+                >
+                  FULL ACCESS
+                </button>
+                <button
+                  type="button"
+                  phx-click="clear_scopes"
+                  phx-target={@myself}
+                  class="arcade-btn text-[8px] py-1 px-2 border-red-800 text-red-600 hover:border-red-400 hover:text-red-400"
+                >
+                  CLEAR ALL
+                </button>
+              </div>
+            </div>
+          </div>
+          
+    <!-- Preview -->
+          <div :if={@selected_scopes != [] or @scope_preset_id} class="space-y-2">
+            <InvaderWeb.ScopeComponents.scope_preview scopes={
+              get_effective_scopes_for_preview(@scope_preset_id, @selected_scopes, @scope_presets)
+            } />
+          </div>
+        </div>
+        
     <!-- Actions -->
         <div class="flex justify-end gap-4 pt-6 mt-6 border-t border-cyan-800">
           <.link
@@ -462,6 +574,19 @@ defmodule InvaderWeb.MissionFormComponent do
         }
       end
 
+    # Load scope presets and initialize scope state
+    scope_presets = ScopePreset.list!()
+
+    {scope_preset_id, selected_scopes} =
+      if action == :new do
+        {nil, []}
+      else
+        {
+          mission.scope_preset_id,
+          mission.scopes || []
+        }
+      end
+
     {:ok,
      socket
      |> assign(assigns)
@@ -473,6 +598,10 @@ defmodule InvaderWeb.MissionFormComponent do
      |> assign(:schedule_days, schedule_days)
      |> assign(:save_as_loadout, false)
      |> assign(:loadout_name, "")
+     |> assign(:scope_presets, scope_presets)
+     |> assign(:scope_preset_id, scope_preset_id)
+     |> assign(:selected_scopes, selected_scopes)
+     |> assign(:show_scope_editor, false)
      |> assign(:form, to_form(form))}
   end
 
@@ -616,6 +745,48 @@ defmodule InvaderWeb.MissionFormComponent do
     end
   end
 
+  # Scope event handlers
+
+  def handle_event("select_scope_preset", %{"scope_preset_id" => preset_id}, socket) do
+    preset_id = if preset_id == "", do: nil, else: preset_id
+
+    {:noreply,
+     socket
+     |> assign(:scope_preset_id, preset_id)
+     |> assign(:show_scope_editor, false)}
+  end
+
+  def handle_event("toggle_scope_editor", _params, socket) do
+    {:noreply, assign(socket, :show_scope_editor, !socket.assigns.show_scope_editor)}
+  end
+
+  def handle_event("toggle_scope_category", %{"category" => category}, socket) do
+    all_category_scopes = get_category_scopes(category)
+    current_scopes = socket.assigns.selected_scopes
+
+    new_scopes =
+      if category_has_scopes?(category, current_scopes) do
+        Enum.reject(current_scopes, &String.starts_with?(&1, "github:#{category}:"))
+      else
+        (current_scopes ++ all_category_scopes) |> Enum.uniq()
+      end
+
+    {:noreply, assign(socket, :selected_scopes, new_scopes)}
+  end
+
+  def handle_event("remove_scope", %{"scope" => scope}, socket) do
+    new_scopes = Enum.reject(socket.assigns.selected_scopes, &(&1 == scope))
+    {:noreply, assign(socket, :selected_scopes, new_scopes)}
+  end
+
+  def handle_event("set_full_access", _params, socket) do
+    {:noreply, assign(socket, :selected_scopes, ["*"])}
+  end
+
+  def handle_event("clear_scopes", _params, socket) do
+    {:noreply, assign(socket, :selected_scopes, [])}
+  end
+
   defp notify_parent(msg), do: send(self(), {__MODULE__, msg})
 
   defp merge_schedule_params(params, assigns) do
@@ -623,8 +794,15 @@ defmodule InvaderWeb.MissionFormComponent do
     |> Map.put("schedule_enabled", to_string(assigns.schedule_enabled))
     |> Map.put("schedule_type", to_string(assigns.schedule_type || ""))
     |> Map.put("schedule_days", assigns.schedule_days || [])
+    |> merge_scope_params(assigns)
     |> convert_12h_to_24h()
     |> maybe_convert_datetime_local(assigns.schedule_type)
+  end
+
+  defp merge_scope_params(params, assigns) do
+    params
+    |> Map.put("scope_preset_id", assigns.scope_preset_id)
+    |> Map.put("scopes", assigns.selected_scopes)
   end
 
   defp convert_12h_to_24h(params) do
@@ -802,5 +980,27 @@ defmodule InvaderWeb.MissionFormComponent do
 
   defp pad_number(value, _default) when is_binary(value) do
     String.pad_leading(value, 2, "0")
+  end
+
+  # Scope helper functions
+
+  defp category_has_scopes?(category, selected_scopes) do
+    Enum.any?(selected_scopes, &String.starts_with?(&1, "github:#{category}:"))
+  end
+
+  defp get_effective_scopes_for_preview(nil, selected_scopes, _presets), do: selected_scopes
+  defp get_effective_scopes_for_preview("", selected_scopes, _presets), do: selected_scopes
+
+  defp get_effective_scopes_for_preview(preset_id, _selected_scopes, presets) do
+    case Enum.find(presets, &(to_string(&1.id) == to_string(preset_id))) do
+      nil -> []
+      preset -> preset.scopes
+    end
+  end
+
+  defp get_category_scopes(category) do
+    Invader.Scopes.Parsers.GitHub.all_scopes()
+    |> Map.keys()
+    |> Enum.filter(&String.starts_with?(&1, "github:#{category}:"))
   end
 end

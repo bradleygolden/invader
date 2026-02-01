@@ -7,6 +7,9 @@ defmodule InvaderWeb.ProxyController do
 
   alias Invader.Connections.Connection
   alias Invader.Connections.GitHub.Executor
+  alias Invader.Missions.Mission
+  alias Invader.Scopes.Checker
+  alias Invader.Scopes.Parsers.GitHub, as: GitHubParser
 
   @doc """
   Execute a proxied command.
@@ -38,41 +41,54 @@ defmodule InvaderWeb.ProxyController do
   """
   def run(conn, %{"action" => "gh", "input" => input}) do
     case verify_sprite_token(conn) do
-      {:ok, _claims} ->
+      {:ok, claims} ->
         args = input["args"] || []
         mode = parse_mode(input["mode"])
         connection_id = input["connection_id"]
         sprite_id = input["sprite_id"]
 
-        case get_connection(connection_id) do
-          {:ok, connection} ->
-            opts = [sprite_id: sprite_id]
-            opts = if mode, do: Keyword.put(opts, :mode, mode), else: opts
+        # Check scope permissions if mission_id is present in token
+        case check_scope_permission(claims, args) do
+          :ok ->
+            case get_connection(connection_id) do
+              {:ok, connection} ->
+                opts = [sprite_id: sprite_id]
+                opts = if mode, do: Keyword.put(opts, :mode, mode), else: opts
 
-            case Executor.execute(connection, args, opts) do
-              {:ok, result} ->
-                json(conn, result)
+                case Executor.execute(connection, args, opts) do
+                  {:ok, result} ->
+                    json(conn, result)
 
-              {:error, %{exit_code: code, output: output}} ->
+                  {:error, %{exit_code: code, output: output}} ->
+                    conn
+                    |> put_status(400)
+                    |> json(%{error: "Command failed", exit_code: code, output: output})
+
+                  {:error, reason} when is_binary(reason) ->
+                    conn
+                    |> put_status(400)
+                    |> json(%{error: reason})
+
+                  {:error, reason} ->
+                    conn
+                    |> put_status(400)
+                    |> json(%{error: inspect(reason)})
+                end
+
+              {:error, :not_found} ->
                 conn
-                |> put_status(400)
-                |> json(%{error: "Command failed", exit_code: code, output: output})
-
-              {:error, reason} when is_binary(reason) ->
-                conn
-                |> put_status(400)
-                |> json(%{error: reason})
-
-              {:error, reason} ->
-                conn
-                |> put_status(400)
-                |> json(%{error: inspect(reason)})
+                |> put_status(404)
+                |> json(%{error: "No GitHub connection configured"})
             end
 
-          {:error, :not_found} ->
+          {:error, :forbidden, scope} ->
             conn
-            |> put_status(404)
-            |> json(%{error: "No GitHub connection configured"})
+            |> put_status(403)
+            |> json(%{
+              error: "Permission denied",
+              message: "This mission does not have permission for scope: #{scope}",
+              scope: scope
+            })
         end
 
       {:error, :invalid_token} ->
@@ -120,6 +136,39 @@ defmodule InvaderWeb.ProxyController do
       {:ok, claims}
     else
       _ -> {:error, :invalid_token}
+    end
+  end
+
+  defp check_scope_permission(claims, args) do
+    mission_id = claims[:mission_id]
+
+    # If no mission_id in token, allow (backward compatibility)
+    if is_nil(mission_id) do
+      :ok
+    else
+      case Mission.get(mission_id) do
+        {:ok, mission} ->
+          # Load scope_preset if needed
+          mission = Ash.load!(mission, :scope_preset)
+
+          # Parse args into scope string
+          case GitHubParser.parse_args(args) do
+            {:ok, scope} ->
+              if Checker.allowed?(mission, scope) do
+                :ok
+              else
+                {:error, :forbidden, scope}
+              end
+
+            {:error, :no_command} ->
+              # No command specified, allow (will show help)
+              :ok
+          end
+
+        {:error, _} ->
+          # Mission not found, allow (backward compatibility)
+          :ok
+      end
     end
   end
 end

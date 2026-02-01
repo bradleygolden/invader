@@ -25,11 +25,11 @@ defmodule Invader.Loadouts.Loadout do
     defaults [:read, :destroy]
 
     create :create do
-      accept [:name, :content, :file_path, :description]
+      accept [:name, :content, :file_path, :description, :scopes, :scope_preset_id]
     end
 
     update :update do
-      accept [:name, :content, :file_path, :description]
+      accept [:name, :content, :file_path, :description, :scopes, :scope_preset_id]
       require_atomic? false
     end
 
@@ -85,7 +85,20 @@ defmodule Invader.Loadouts.Loadout do
       description "Optional description of what this loadout does"
     end
 
+    attribute :scopes, {:array, :string} do
+      allow_nil? true
+      public? true
+      description "Array of scope strings for CLI access control"
+    end
+
     timestamps()
+  end
+
+  relationships do
+    belongs_to :scope_preset, Invader.Scopes.ScopePreset do
+      allow_nil? true
+      description "Optional preset that provides default scopes"
+    end
   end
 
   identities do

@@ -76,7 +76,9 @@ defmodule Invader.Missions.Mission do
         :schedule_hour,
         :schedule_minute,
         :schedule_days,
-        :next_run_at
+        :next_run_at,
+        :scopes,
+        :scope_preset_id
       ]
 
       validate fn changeset, _context ->
@@ -109,7 +111,9 @@ defmodule Invader.Missions.Mission do
         :schedule_hour,
         :schedule_minute,
         :schedule_days,
-        :next_run_at
+        :next_run_at,
+        :scopes,
+        :scope_preset_id
       ]
 
       validate attribute_equals(:status, :pending) do
@@ -291,12 +295,24 @@ defmodule Invader.Missions.Mission do
       description "When this mission was last triggered by scheduler"
     end
 
+    attribute :scopes, {:array, :string} do
+      allow_nil? true
+      public? true
+
+      description "Array of scope strings for CLI access control (e.g., ['github:pr:*', 'github:issue:view'])"
+    end
+
     timestamps()
   end
 
   relationships do
     belongs_to :sprite, Invader.Sprites.Sprite do
       allow_nil? false
+    end
+
+    belongs_to :scope_preset, Invader.Scopes.ScopePreset do
+      allow_nil? true
+      description "Optional preset that provides default scopes"
     end
 
     has_many :waves, Invader.Missions.Wave
