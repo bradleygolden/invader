@@ -16,6 +16,7 @@ defmodule Invader.Workers.LoopRunner do
 
   alias Invader.Missions
   alias Invader.Missions.{Mission, Wave}
+  alias Invader.Prompts.{ContextBuilder, Template}
   alias Invader.SpriteCli.Cli
 
   @impl Oban.Worker
@@ -83,8 +84,9 @@ defmodule Invader.Workers.LoopRunner do
         number: wave_number
       })
 
-    # Get prompt - either from file (refreshed each wave) or inline
-    prompt = get_prompt(mission)
+    # Get and process prompt with context injection
+    raw_prompt = get_prompt(mission)
+    prompt = process_prompt(raw_prompt, mission, wave_number)
 
     # Execute the wave with streaming output
     {output, exit_code} = execute_wave(mission, prompt, wave.id)
@@ -120,6 +122,19 @@ defmodule Invader.Workers.LoopRunner do
   defp get_prompt(_) do
     Logger.warning("No prompt found for mission")
     ""
+  end
+
+  defp process_prompt(raw_prompt, mission, wave_number) do
+    # Build bindings for template substitution
+    bindings = Template.build_bindings(mission, wave_number)
+
+    # Apply template substitution ({{variable}} syntax)
+    processed = Template.render(raw_prompt, bindings)
+
+    # Build and prepend CLI context
+    cli_context = ContextBuilder.build(mission, bindings)
+
+    cli_context <> processed
   end
 
   defp execute_wave(mission, prompt, wave_id) do
