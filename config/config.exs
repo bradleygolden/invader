@@ -60,7 +60,14 @@ config :spark,
 config :invader,
   ecto_repos: [Invader.Repo],
   generators: [timestamp_type: :utc_datetime],
-  ash_domains: [Invader.Sprites, Invader.Missions, Invader.Saves, Invader.Loadouts]
+  ash_domains: [
+    Invader.Sprites,
+    Invader.Missions,
+    Invader.Saves,
+    Invader.Loadouts,
+    Invader.Connections,
+    Invader.Accounts
+  ]
 
 # Configure the endpoint
 config :invader, InvaderWeb.Endpoint,
@@ -110,6 +117,9 @@ config :logger, :default_formatter,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+# AshAdmin actor plug for policy enforcement
+config :ash_admin, :actor_plug, InvaderWeb.AshAdminActorPlug
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

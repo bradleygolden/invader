@@ -1,5 +1,7 @@
 defmodule InvaderWeb.Router do
   use InvaderWeb, :router
+  use AshAuthentication.Phoenix.Router
+  import AshAdmin.Router
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -8,39 +10,76 @@ defmodule InvaderWeb.Router do
     plug :put_root_layout, html: {InvaderWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :load_from_session
   end
 
   pipeline :api do
     plug :accepts, ["json"]
   end
 
+  # Public routes - sign in page
   scope "/", InvaderWeb do
     pipe_through :browser
 
-    live "/", DashboardLive, :index
-    live "/dashboard", DashboardLive, :index
-
-    # Sprite modal routes
-    live "/sprites/new", DashboardLive, :new_sprite
-    live "/sprites/:id", DashboardLive, :show_sprite
-    live "/sprites/:id/edit", DashboardLive, :edit_sprite
-
-    # Mission modal routes
-    live "/missions/new", DashboardLive, :new_mission
-    live "/missions/:id", DashboardLive, :show_mission
-    live "/missions/:id/edit", DashboardLive, :edit_mission
-
-    # Settings modal route
-    live "/settings", DashboardLive, :settings
-
-    # Loadouts modal route
-    live "/loadouts", DashboardLive, :loadouts
+    sign_in_route(auth_routes_prefix: "/auth", live_view: InvaderWeb.SignInLive)
+    sign_out_route AuthController
+    auth_routes AuthController, Invader.Accounts.User, path: "/auth"
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", InvaderWeb do
-  #   pipe_through :api
-  # end
+  # Protected routes - require authentication
+  scope "/", InvaderWeb do
+    pipe_through :browser
+
+    ash_authentication_live_session :authenticated,
+      on_mount: {InvaderWeb.LiveUserAuth, :live_user_required} do
+      live "/", DashboardLive, :index
+      live "/dashboard", DashboardLive, :index
+
+      # Sprite modal routes
+      live "/sprites/new", DashboardLive, :new_sprite
+      live "/sprites/:id", DashboardLive, :show_sprite
+      live "/sprites/:id/edit", DashboardLive, :edit_sprite
+
+      # Mission modal routes
+      live "/missions/new", DashboardLive, :new_mission
+      live "/missions/:id", DashboardLive, :show_mission
+      live "/missions/:id/edit", DashboardLive, :edit_mission
+
+      # Settings modal route
+      live "/settings", DashboardLive, :settings
+
+      # Loadouts modal route
+      live "/loadouts", DashboardLive, :loadouts
+
+      # Connections modal route
+      live "/connections", DashboardLive, :connections
+    end
+  end
+
+  # Admin routes - require admin authentication
+  scope "/" do
+    pipe_through :browser
+
+    ash_admin "/admin",
+              AshAuthentication.Phoenix.LiveSession.opts(
+                on_mount: [{InvaderWeb.LiveUserAuth, :live_admin_required}]
+              )
+  end
+
+  # API routes for CLI proxy
+  scope "/api", InvaderWeb do
+    pipe_through :api
+
+    post "/proxy", ProxyController, :run
+  end
+
+  # CLI scripts (served as static files)
+  scope "/cli", InvaderWeb do
+    pipe_through :api
+
+    get "/invader.sh", CliController, :invader_script
+    get "/install.sh", CliController, :install_script
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:invader, :dev_routes) do

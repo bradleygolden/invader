@@ -140,6 +140,11 @@ defmodule InvaderWeb.DashboardLive do
     |> assign(:page_title, "Loadouts")
   end
 
+  defp apply_action(socket, :connections, _params) do
+    socket
+    |> assign(:page_title, "Connections")
+  end
+
   defp parse_page(nil), do: 1
 
   defp parse_page(page) when is_binary(page) do
@@ -656,6 +661,19 @@ defmodule InvaderWeb.DashboardLive do
           id="loadouts-manager"
         />
       </.modal>
+
+      <.modal
+        :if={@live_action == :connections}
+        id="connections-modal"
+        show
+        on_cancel={JS.patch(~p"/")}
+      >
+        <:title>CONNECTIONS</:title>
+        <.live_component
+          module={InvaderWeb.ConnectionsComponent}
+          id="connections-manager"
+        />
+      </.modal>
       
     <!-- Animated Aliens Header Decoration -->
       <div class="hidden sm:flex justify-center gap-4 mb-2 text-2xl">
@@ -710,6 +728,24 @@ defmodule InvaderWeb.DashboardLive do
               <rect x="14" y="10" width="2" height="2" class="fill-red-500" />
             </svg>
           </button>
+          <.link
+            patch={~p"/connections"}
+            class="arcade-btn border-cyan-700 text-cyan-500 p-1.5 hover:border-cyan-400 hover:text-cyan-400"
+            title="Connections"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              class="w-5 h-5 fill-current"
+              style="image-rendering: pixelated;"
+            >
+              <rect x="0" y="6" width="4" height="4" />
+              <rect x="4" y="7" width="3" height="2" />
+              <rect x="9" y="7" width="3" height="2" />
+              <rect x="12" y="6" width="4" height="4" />
+              <rect x="7" y="4" width="2" height="2" />
+              <rect x="7" y="10" width="2" height="2" />
+            </svg>
+          </.link>
           <.link
             patch={~p"/settings"}
             class="arcade-btn border-cyan-700 text-cyan-500 p-1.5 hover:border-cyan-400 hover:text-cyan-400"

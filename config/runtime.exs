@@ -23,6 +23,33 @@ end
 config :invader, InvaderWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# GitHub OAuth configuration
+if github_client_id = System.get_env("GITHUB_CLIENT_ID") do
+  config :invader, :github_client_id, github_client_id
+end
+
+if github_client_secret = System.get_env("GITHUB_CLIENT_SECRET") do
+  config :invader, :github_client_secret, github_client_secret
+end
+
+# Token signing secret for authentication
+if token_signing_secret = System.get_env("TOKEN_SIGNING_SECRET") do
+  config :invader, :token_signing_secret, token_signing_secret
+end
+
+# GitHub redirect URI - construct from host
+github_redirect_uri =
+  case {config_env(), System.get_env("PHX_HOST")} do
+    {:prod, host} when is_binary(host) ->
+      "https://#{host}/auth/user/github/callback"
+
+    _ ->
+      port = System.get_env("PORT", "4000")
+      "http://localhost:#{port}/auth/user/github/callback"
+  end
+
+config :invader, :github_redirect_uri, github_redirect_uri
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

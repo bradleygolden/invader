@@ -86,7 +86,14 @@ defmodule Invader.MixProject do
       {:sprites, git: "https://github.com/superfly/sprites-ex.git"},
       {:crontab, "~> 1.1"},
       {:tz, "~> 0.28"},
-      {:mdex, "~> 0.11"}
+      {:mdex, "~> 0.11"},
+      {:joken, "~> 2.6"},
+      {:ash_cloak, "~> 0.2"},
+      {:cloak, "~> 1.1"},
+      {:ash_authentication, "~> 4.0"},
+      {:ash_authentication_phoenix, "~> 2.0"},
+      {:ash_admin, "~> 0.12"},
+      {:picosat_elixir, "~> 0.2"}
     ]
   end
 

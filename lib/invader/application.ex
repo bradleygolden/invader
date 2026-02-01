@@ -9,7 +9,9 @@ defmodule Invader.Application do
   def start(_type, _args) do
     children = [
       InvaderWeb.Telemetry,
+      Invader.Vault,
       Invader.Repo,
+      {AshAuthentication.Supervisor, otp_app: :invader},
       Invader.Settings,
       # Registry for tracking running mission processes
       {Registry, keys: :unique, name: Invader.MissionRegistry},
