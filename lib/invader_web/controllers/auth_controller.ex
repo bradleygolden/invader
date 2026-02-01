@@ -9,7 +9,10 @@ defmodule InvaderWeb.AuthController do
     |> redirect(to: ~p"/")
   end
 
-  def failure(conn, _activity, reason) do
+  def failure(conn, activity, reason) do
+    require Logger
+    Logger.error("OAuth failure - activity: #{inspect(activity)}, reason: #{inspect(reason)}")
+
     message =
       case reason do
         %Ash.Error.Invalid{errors: errors} ->
@@ -20,8 +23,13 @@ defmodule InvaderWeb.AuthController do
           end)
           |> Enum.join(", ")
 
+        %Ash.Error.Forbidden{errors: errors} ->
+          errors
+          |> Enum.map(&Exception.message/1)
+          |> Enum.join(", ")
+
         _ ->
-          "Authentication failed"
+          Exception.message(reason)
       end
 
     conn
