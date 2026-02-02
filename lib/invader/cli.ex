@@ -1,6 +1,6 @@
 defmodule Invader.CLI do
   @moduledoc """
-  Command-line interface for Invader - Ralph Loop Orchestrator.
+  Command-line interface for Invader - Agent Orchestrator.
 
   Usage:
     invade start [PROMPT.md] --sprite NAME --waves N --duration TIME
@@ -365,7 +365,7 @@ defmodule Invader.CLI do
 
   defp help do
     IO.puts("""
-    ◄ INVADER ► - Ralph Loop Orchestrator
+    ◄ INVADER ► - Agent Orchestrator
 
     USAGE:
       invade <command> [options]

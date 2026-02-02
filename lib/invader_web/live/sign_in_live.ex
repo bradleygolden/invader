@@ -89,7 +89,7 @@ defmodule InvaderWeb.SignInLive do
       <h1 class="text-3xl md:text-4xl font-bold tracking-widest arcade-glow mb-2">
         INVADER
       </h1>
-      <p class="text-cyan-500 text-[10px] tracking-wider mb-8">[ RALPH LOOP COMMAND CENTER ]</p>
+      <p class="text-cyan-500 text-[10px] tracking-wider mb-8">[ COMMAND CENTER ]</p>
       
     <!-- Flash Messages -->
       <%= if Phoenix.Flash.get(@flash, :error) do %>

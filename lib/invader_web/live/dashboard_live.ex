@@ -1,6 +1,6 @@
 defmodule InvaderWeb.DashboardLive do
   @moduledoc """
-  8-bit Space Invaders themed dashboard for monitoring Ralph loops.
+  8-bit Space Invaders themed dashboard for monitoring agent missions.
   """
   use InvaderWeb, :live_view
 
@@ -864,7 +864,7 @@ defmodule InvaderWeb.DashboardLive do
         <h1 class="text-3xl md:text-4xl font-bold tracking-widest arcade-glow">
           INVADER
         </h1>
-        <p class="text-cyan-500 text-[10px] mt-3 tracking-wider">[ RALPH LOOP COMMAND CENTER ]</p>
+        <p class="text-cyan-500 text-[10px] mt-3 tracking-wider">[ COMMAND CENTER ]</p>
       </header>
       
     <!-- Score Display - Classic Arcade Style -->
