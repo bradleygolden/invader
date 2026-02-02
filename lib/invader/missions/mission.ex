@@ -67,6 +67,7 @@ defmodule Invader.Missions.Mission do
     define :sprite_ready, action: :sprite_ready
     define :provision_failed, action: :provision_failed
     define :setup_complete, action: :setup_complete
+    define :update_waves, action: :update_waves
   end
 
   actions do
@@ -185,6 +186,32 @@ defmodule Invader.Missions.Mission do
       change transition_state(:aborted)
       change set_attribute(:status, :aborted)
       change set_attribute(:finished_at, &DateTime.utc_now/0)
+    end
+
+    update :update_waves do
+      require_atomic? false
+      accept [:max_waves]
+
+      validate fn changeset, _context ->
+        status = Ash.Changeset.get_attribute(changeset, :status)
+
+        if status in [:completed, :failed, :aborted] do
+          {:error, field: :status, message: "cannot update waves on completed/failed/aborted missions"}
+        else
+          :ok
+        end
+      end
+
+      validate fn changeset, _context ->
+        max_waves = Ash.Changeset.get_attribute(changeset, :max_waves)
+        current_wave = changeset.data.current_wave || 0
+
+        if max_waves < current_wave do
+          {:error, field: :max_waves, message: "cannot set max_waves below current wave (#{current_wave})"}
+        else
+          :ok
+        end
+      end
     end
 
     update :run_scheduled do

@@ -209,6 +209,36 @@ defmodule InvaderWeb.MissionLive.Show do
   end
 
   @impl true
+  def handle_event("increment_waves", _params, socket) do
+    mission = socket.assigns.mission
+    new_max = mission.max_waves + 1
+
+    case Missions.Mission.update_waves(mission, %{max_waves: new_max}) do
+      {:ok, updated} ->
+        updated = Ash.load!(updated, [:sprite, :waves])
+        {:noreply, assign(socket, :mission, updated)}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Cannot update waves")}
+    end
+  end
+
+  @impl true
+  def handle_event("decrement_waves", _params, socket) do
+    mission = socket.assigns.mission
+    new_max = max(mission.max_waves - 1, mission.current_wave + 1)
+
+    case Missions.Mission.update_waves(mission, %{max_waves: new_max}) do
+      {:ok, updated} ->
+        updated = Ash.load!(updated, [:sprite, :waves])
+        {:noreply, assign(socket, :mission, updated)}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Cannot decrease waves below current wave")}
+    end
+  end
+
+  @impl true
   def handle_event("inject_api_key", %{"api_key" => api_key}, socket) do
     mission = socket.assigns.mission
 
@@ -291,8 +321,29 @@ defmodule InvaderWeb.MissionLive.Show do
           </div>
           <div>
             <span class="text-cyan-600">PROGRESS</span>
-            <div class="text-cyan-400">
-              Wave {@mission.current_wave}/{@mission.max_waves}
+            <div class="text-cyan-400 flex items-center gap-2">
+              <span>Wave {@mission.current_wave}/</span>
+              <%= if @mission.status in [:pending, :running, :pausing, :paused, :provisioning, :setup] do %>
+                <div class="flex items-center gap-1">
+                  <button
+                    phx-click="decrement_waves"
+                    class="w-5 h-5 flex items-center justify-center border border-cyan-700 text-cyan-500 hover:bg-cyan-900/30 text-xs"
+                    title="Decrease max waves"
+                  >
+                    -
+                  </button>
+                  <span class="w-6 text-center">{@mission.max_waves}</span>
+                  <button
+                    phx-click="increment_waves"
+                    class="w-5 h-5 flex items-center justify-center border border-cyan-700 text-cyan-500 hover:bg-cyan-900/30 text-xs"
+                    title="Increase max waves"
+                  >
+                    +
+                  </button>
+                </div>
+              <% else %>
+                <span>{@mission.max_waves}</span>
+              <% end %>
             </div>
           </div>
           <div>
