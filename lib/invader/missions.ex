@@ -8,5 +8,6 @@ defmodule Invader.Missions do
   resources do
     resource Invader.Missions.Mission
     resource Invader.Missions.Wave
+    resource Invader.Missions.GithubRepo
   end
 end

@@ -53,10 +53,25 @@ magic_link_enabled =
 
 config :invader, :magic_link_enabled, magic_link_enabled
 
+# Tunnel URL support for development (ngrok, cloudflare tunnel, etc.)
+# Set PHX_HOST to your tunnel hostname to allow sprites to callback to your local machine
+if config_env() != :prod do
+  if tunnel_host = System.get_env("PHX_HOST") do
+    config :invader, InvaderWeb.Endpoint, url: [host: tunnel_host, port: 443, scheme: "https"]
+  end
+end
+
+# Sprite callback URL - use this to set a custom URL for sprites to callback to
+# Useful for local dev: browse at localhost:4000 while sprites use your tunnel URL
+# Example: SPRITE_CALLBACK_URL=https://random-words.trycloudflare.com
+if sprite_callback_url = System.get_env("SPRITE_CALLBACK_URL") do
+  config :invader, :sprite_callback_url, sprite_callback_url
+end
+
 # GitHub redirect URI - construct from host
 github_redirect_uri =
   case {config_env(), System.get_env("PHX_HOST")} do
-    {:prod, host} when is_binary(host) ->
+    {_env, host} when is_binary(host) ->
       "https://#{host}/auth/user/github/callback"
 
     _ ->

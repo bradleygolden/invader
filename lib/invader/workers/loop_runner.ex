@@ -23,7 +23,8 @@ defmodule Invader.Workers.LoopRunner do
   def perform(%Oban.Job{args: %{"mission_id" => mission_id}}) do
     with {:ok, mission} <- Missions.Mission.get(mission_id),
          :ok <- validate_can_run(mission),
-         :ok <- ensure_cli_installed(mission) do
+         :ok <- ensure_cli_installed(mission),
+         :ok <- clone_github_repos(mission) do
       run_wave(mission)
     else
       {:error, %Ash.Error.Query.NotFound{}} ->
@@ -50,7 +51,7 @@ defmodule Invader.Workers.LoopRunner do
 
   defp ensure_cli_installed(%{current_wave: 0} = mission) do
     sprite = Ash.load!(mission, :sprite).sprite
-    invader_url = InvaderWeb.Endpoint.url()
+    invader_url = sprite_callback_url()
     token = generate_sprite_token(sprite.id, mission.id)
 
     case Invader.Connections.Installer.install_cli(sprite.name, invader_url, token) do
@@ -65,6 +66,38 @@ defmodule Invader.Workers.LoopRunner do
   end
 
   defp ensure_cli_installed(_mission), do: :ok
+
+  # Clone GitHub repos on first wave only
+  defp clone_github_repos(%{current_wave: 0} = mission) do
+    mission = Ash.load!(mission, [:sprite, :github_repos])
+    repos = mission.github_repos || []
+
+    if repos == [] do
+      :ok
+    else
+      Logger.info("Cloning #{length(repos)} GitHub repos for mission #{mission.id}")
+
+      Enum.each(repos, fn repo ->
+        full_name = "#{repo.owner}/#{repo.name}"
+        Logger.info("Cloning #{full_name} to sprite #{mission.sprite.name}")
+
+        # Use the invader CLI to clone (handles token mode automatically)
+        command = "invader gh repo clone #{full_name}"
+
+        case Cli.exec(mission.sprite.name, command) do
+          {:ok, output} ->
+            Logger.info("Cloned #{full_name}: #{String.slice(output, 0, 100)}")
+
+          {:error, reason} ->
+            Logger.warning("Failed to clone #{full_name}: #{inspect(reason)}")
+        end
+      end)
+
+      :ok
+    end
+  end
+
+  defp clone_github_repos(_mission), do: :ok
 
   defp generate_sprite_token(sprite_id, mission_id) do
     Phoenix.Token.sign(InvaderWeb.Endpoint, "sprite_proxy", %{
@@ -282,5 +315,11 @@ defmodule Invader.Workers.LoopRunner do
     %{mission_id: mission_id}
     |> __MODULE__.new()
     |> Oban.insert()
+  end
+
+  # Returns the URL sprites should use to callback to Invader.
+  # Uses SPRITE_CALLBACK_URL if set, otherwise falls back to endpoint URL.
+  defp sprite_callback_url do
+    Application.get_env(:invader, :sprite_callback_url) || InvaderWeb.Endpoint.url()
   end
 end

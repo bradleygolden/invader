@@ -21,6 +21,54 @@ defmodule Invader.Connections.GitHub.Executor do
   @stateful_commands ~w(clone checkout push pull fetch)
 
   @doc """
+  List repositories accessible via the GitHub connection.
+
+  Returns a list of repos with owner, name, and description.
+
+  ## Options
+
+  - `:limit` - Maximum number of repos to fetch (default: 100)
+  - `:sprite_id` - ID of the sprite making the request (for audit trail)
+
+  ## Returns
+
+    {:ok, [%{owner: string, name: string, full_name: string, description: string | nil}]}
+  """
+  def list_repos(connection, opts \\ []) do
+    limit = opts[:limit] || 100
+
+    case execute(connection, [
+           "repo",
+           "list",
+           "--limit",
+           "#{limit}",
+           "--json",
+           "owner,name,description"
+         ]) do
+      {:ok, %{output: output}} ->
+        repos =
+          output
+          |> Jason.decode!()
+          |> Enum.map(fn repo ->
+            owner = get_in(repo, ["owner", "login"]) || ""
+            name = repo["name"] || ""
+
+            %{
+              owner: owner,
+              name: name,
+              full_name: "#{owner}/#{name}",
+              description: repo["description"]
+            }
+          end)
+
+        {:ok, repos}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Execute a GitHub CLI command.
 
   ## Options

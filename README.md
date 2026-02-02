@@ -42,32 +42,37 @@ curl -fsSL https://raw.githubusercontent.com/bradleygolden/invader/main/update.s
 
 ## Local Development
 
+### Prerequisites
+
+- Elixir 1.17+ / Erlang OTP 26+
+- Sprite CLI (`sprite login`) - for testing with sprites
+
+### Setup
+
 ```bash
-# Install dependencies and generate secrets
 mix setup
 ```
 
-This automatically generates required secrets (`CLOAK_KEY`, `TOKEN_SIGNING_SECRET`, `ADMIN_SETUP_TOKEN`) in `.env`.
+This generates required secrets in `.env`.
 
-### GitHub OAuth Setup
+### GitHub OAuth
 
 1. Create an OAuth App at https://github.com/settings/applications/new
 2. Set **Homepage URL** to: `http://localhost:4000`
 3. Set **Callback URL** to: `http://localhost:4000/auth/user/github/callback`
-4. Add credentials to `.env`:
+4. Add to `.env`:
    ```
    GITHUB_CLIENT_ID=your-client-id
    GITHUB_CLIENT_SECRET=your-client-secret
    ```
 
-### Run the server
+### Run
 
 ```bash
-# Source environment and start
 source .env && mix phx.server
 ```
 
-Visit [localhost:4000](http://localhost:4000). Enter the `ADMIN_SETUP_TOKEN` from your `.env` file, then sign in with GitHub.
+Visit [localhost:4000](http://localhost:4000). Enter `ADMIN_SETUP_TOKEN` from `.env`, then sign in with GitHub.
 
 ## License
 

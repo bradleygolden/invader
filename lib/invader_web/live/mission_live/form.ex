@@ -5,9 +5,12 @@ defmodule InvaderWeb.MissionLive.Form do
   use InvaderWeb, :live_view
 
   alias Invader.Missions.Mission
+  alias Invader.Missions.GithubRepo
   alias Invader.Sprites.Sprite
   alias Invader.Loadouts.Loadout
   alias Invader.Scopes.ScopePreset
+  alias Invader.Connections.Connection
+  alias Invader.Connections.GitHub.Executor, as: GitHubExecutor
   alias Invader.Settings
   alias InvaderWeb.TimezoneHelper
 
@@ -91,6 +94,20 @@ defmodule InvaderWeb.MissionLive.Form do
     # Show waves setting only when editing (if max_waves > 1) or when user adds it
     show_waves_setting = action == :edit and (mission.max_waves || 1) > 1
 
+    # Load GitHub repos from connection
+    {available_repos, github_connected, github_installation_id} = load_github_repos()
+
+    # Load existing repos for this mission when editing
+    selected_repos =
+      if action == :edit do
+        mission
+        |> Ash.load!(:github_repos)
+        |> Map.get(:github_repos, [])
+        |> Enum.map(&%{owner: &1.owner, name: &1.name, full_name: "#{&1.owner}/#{&1.name}"})
+      else
+        []
+      end
+
     socket
     |> assign(:sprite_options, sprite_options)
     |> assign(:loadout_options, loadout_options)
@@ -105,7 +122,47 @@ defmodule InvaderWeb.MissionLive.Form do
     |> assign(:selected_scopes, selected_scopes)
     |> assign(:show_scope_editor, false)
     |> assign(:show_waves_setting, show_waves_setting)
+    |> assign(:available_repos, available_repos)
+    |> assign(:selected_repos, selected_repos)
+    |> assign(:github_connected, github_connected)
+    |> assign(:github_installation_id, github_installation_id)
+    |> assign(:show_repo_selector, false)
     |> assign(:form, to_form(form))
+  end
+
+  defp load_github_repos do
+    case Connection.get_by_type(:github) do
+      {:ok, connection} ->
+        repos =
+          case GitHubExecutor.list_repos(connection, limit: 100) do
+            {:ok, repos} -> repos
+            {:error, _} -> []
+          end
+
+        {repos, true, connection.installation_id}
+
+      {:error, _} ->
+        {[], false, nil}
+    end
+  end
+
+  defp save_github_repos(mission, selected_repos) do
+    # First, delete existing repos for this mission
+    mission
+    |> Ash.load!(:github_repos)
+    |> Map.get(:github_repos, [])
+    |> Enum.each(fn repo ->
+      GithubRepo.destroy!(repo)
+    end)
+
+    # Then create new ones
+    Enum.each(selected_repos, fn repo ->
+      GithubRepo.create!(%{
+        mission_id: mission.id,
+        owner: repo.owner,
+        name: repo.name
+      })
+    end)
   end
 
   @impl true
@@ -219,7 +276,10 @@ defmodule InvaderWeb.MissionLive.Form do
       end
 
     case AshPhoenix.Form.submit(socket.assigns.form.source, params: mission_params) do
-      {:ok, _mission} ->
+      {:ok, mission} ->
+        # Save GitHub repos for this mission
+        save_github_repos(mission, socket.assigns.selected_repos)
+
         flash_message =
           case loadout_result do
             {:ok, %Loadout{}} ->
@@ -283,6 +343,42 @@ defmodule InvaderWeb.MissionLive.Form do
   @impl true
   def handle_event("clear_scopes", _params, socket) do
     {:noreply, assign(socket, :selected_scopes, [])}
+  end
+
+  # GitHub repo event handlers
+
+  @impl true
+  def handle_event("toggle_repo_selector", _params, socket) do
+    {:noreply, assign(socket, :show_repo_selector, !socket.assigns.show_repo_selector)}
+  end
+
+  @impl true
+  def handle_event("toggle_repo", %{"repo" => full_name}, socket) do
+    selected = socket.assigns.selected_repos
+    available = socket.assigns.available_repos
+
+    new_selected =
+      if Enum.any?(selected, &(&1.full_name == full_name)) do
+        Enum.reject(selected, &(&1.full_name == full_name))
+      else
+        case Enum.find(available, &(&1.full_name == full_name)) do
+          nil -> selected
+          repo -> [repo | selected]
+        end
+      end
+
+    {:noreply, assign(socket, :selected_repos, new_selected)}
+  end
+
+  @impl true
+  def handle_event("remove_repo", %{"repo" => full_name}, socket) do
+    new_selected = Enum.reject(socket.assigns.selected_repos, &(&1.full_name == full_name))
+    {:noreply, assign(socket, :selected_repos, new_selected)}
+  end
+
+  @impl true
+  def handle_event("clear_repos", _params, socket) do
+    {:noreply, assign(socket, :selected_repos, [])}
   end
 
   defp merge_schedule_params(params, assigns) do
@@ -998,6 +1094,96 @@ defmodule InvaderWeb.MissionLive.Form do
               <InvaderWeb.ScopeComponents.scope_preview scopes={
                 get_effective_scopes_for_preview(@scope_preset_id, @selected_scopes, @scope_presets)
               } />
+            </div>
+          </div>
+          
+    <!-- GitHub Repos Section -->
+          <div class="space-y-4 pt-4 border-t border-cyan-800">
+            <div class="flex items-center justify-between">
+              <label class="text-cyan-500 text-[10px]">GITHUB REPOS</label>
+              <span class="text-[8px] px-2 py-0.5 bg-cyan-900/50 border border-cyan-700 text-cyan-400">
+                {length(@selected_repos)}
+              </span>
+            </div>
+
+            <p class="text-cyan-700 text-[9px]">
+              Selected repos will be automatically cloned to the sprite when the mission starts.
+            </p>
+
+            <div :if={not @github_connected} class="text-yellow-500 text-[10px]">
+              GitHub not connected.
+              <.link navigate={~p"/connections"} class="underline hover:text-yellow-400">
+                Configure connection
+              </.link>
+            </div>
+
+            <div :if={@github_connected} class="space-y-3">
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  phx-click="toggle_repo_selector"
+                  class={"arcade-btn text-[8px] py-1 px-2 #{if @show_repo_selector, do: "border-cyan-400 text-cyan-400", else: "border-cyan-800 text-cyan-600"}"}
+                >
+                  {if @show_repo_selector, do: "HIDE REPOS", else: "SELECT REPOS"}
+                </button>
+                <a
+                  :if={@github_installation_id}
+                  href={"https://github.com/settings/installations/#{@github_installation_id}"}
+                  target="_blank"
+                  class="text-[8px] text-cyan-600 hover:text-cyan-400 underline"
+                >
+                  + Add more repos
+                </a>
+              </div>
+
+              <div
+                :if={@show_repo_selector}
+                class="space-y-2 p-3 border border-cyan-900 bg-gray-900/50 max-h-48 overflow-y-auto"
+              >
+                <div :if={@available_repos == []} class="text-cyan-700 text-[10px]">
+                  No repositories found.
+                </div>
+                <%= for repo <- @available_repos do %>
+                  <label class="flex items-center gap-2 cursor-pointer hover:bg-cyan-900/30 p-1">
+                    <input
+                      type="checkbox"
+                      checked={Enum.any?(@selected_repos, &(&1.full_name == repo.full_name))}
+                      phx-click="toggle_repo"
+                      phx-value-repo={repo.full_name}
+                      class="w-4 h-4 bg-black border-2 border-cyan-700 text-cyan-400 focus:ring-cyan-500"
+                    />
+                    <span class="text-white text-[10px]">{repo.full_name}</span>
+                    <span :if={repo.description} class="text-cyan-700 text-[8px] truncate">
+                      - {repo.description}
+                    </span>
+                  </label>
+                <% end %>
+              </div>
+
+              <div :if={@selected_repos != []} class="space-y-2">
+                <div class="flex flex-wrap gap-1">
+                  <%= for repo <- @selected_repos do %>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[8px] bg-cyan-900/50 border border-cyan-700 text-cyan-400">
+                      {repo.full_name}
+                      <button
+                        type="button"
+                        phx-click="remove_repo"
+                        phx-value-repo={repo.full_name}
+                        class="text-cyan-600 hover:text-red-400"
+                      >
+                        x
+                      </button>
+                    </span>
+                  <% end %>
+                </div>
+                <button
+                  type="button"
+                  phx-click="clear_repos"
+                  class="arcade-btn text-[8px] py-1 px-2 border-red-800 text-red-600 hover:border-red-400 hover:text-red-400"
+                >
+                  CLEAR ALL
+                </button>
+              </div>
             </div>
           </div>
           

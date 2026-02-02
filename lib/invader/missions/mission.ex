@@ -316,5 +316,6 @@ defmodule Invader.Missions.Mission do
     end
 
     has_many :waves, Invader.Missions.Wave
+    has_many :github_repos, Invader.Missions.GithubRepo
   end
 end
