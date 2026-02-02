@@ -6,8 +6,6 @@ defmodule InvaderWeb.DashboardLive do
 
   alias Invader.Missions
   alias Invader.Sprites
-  alias Invader.Saves
-  alias InvaderWeb.TimezoneHelper
 
   require Ash.Query
 
@@ -39,118 +37,15 @@ defmodule InvaderWeb.DashboardLive do
 
   @impl true
   def handle_params(params, _url, socket) do
-    {:noreply, apply_action(socket, socket.assigns.live_action, params)}
-  end
-
-  defp apply_action(socket, :index, params) do
     page = parse_page(params["page"])
 
-    socket
-    |> assign(:page_title, "Invader Dashboard")
-    |> assign(:sprite, nil)
-    |> assign(:mission, nil)
-    |> assign(:save, nil)
-    |> assign(:scores_page, page)
-    |> load_data()
-  end
+    socket =
+      socket
+      |> assign(:page_title, "Invader Dashboard")
+      |> assign(:scores_page, page)
+      |> load_data()
 
-  defp apply_action(socket, :new_sprite, _params) do
-    socket
-    |> assign(:page_title, "New Sprite")
-    |> assign(:sprite, %Sprites.Sprite{})
-  end
-
-  defp apply_action(socket, :edit_sprite, %{"id" => id}) do
-    case Sprites.Sprite.get(id) do
-      {:ok, sprite} ->
-        socket
-        |> assign(:page_title, "Edit Sprite")
-        |> assign(:sprite, sprite)
-
-      _ ->
-        socket
-        |> put_flash(:error, "Sprite not found")
-        |> push_patch(to: ~p"/")
-    end
-  end
-
-  defp apply_action(socket, :show_sprite, %{"id" => id}) do
-    case Sprites.Sprite.get(id) do
-      {:ok, sprite} ->
-        socket
-        |> assign(:page_title, "Sprite Details")
-        |> assign(:sprite, sprite)
-
-      _ ->
-        socket
-        |> put_flash(:error, "Sprite not found")
-        |> push_patch(to: ~p"/")
-    end
-  end
-
-  defp apply_action(socket, :new_mission, _params) do
-    socket
-    |> assign(:page_title, "New Mission")
-    |> assign(:mission, %Missions.Mission{})
-  end
-
-  defp apply_action(socket, :edit_mission, %{"id" => id}) do
-    case Missions.Mission.get(id) do
-      {:ok, mission} ->
-        mission = Ash.load!(mission, :sprite)
-
-        socket
-        |> assign(:page_title, "Edit Mission")
-        |> assign(:mission, mission)
-
-      _ ->
-        socket
-        |> put_flash(:error, "Mission not found")
-        |> push_patch(to: ~p"/")
-    end
-  end
-
-  defp apply_action(socket, :show_mission, %{"id" => id}) do
-    case Missions.Mission.get(id) do
-      {:ok, mission} ->
-        mission = Ash.load!(mission, [:sprite, :waves])
-        checkpoints = Saves.Save.for_mission!(mission.id)
-
-        # Subscribe to running wave's output if mission is running
-        socket = maybe_subscribe_to_wave(socket, mission)
-
-        socket
-        |> assign(:page_title, "Mission Details")
-        |> assign(:mission, mission)
-        |> assign(:mission_checkpoints, checkpoints)
-
-      _ ->
-        socket
-        |> put_flash(:error, "Mission not found")
-        |> push_patch(to: ~p"/")
-    end
-  end
-
-  defp apply_action(socket, :settings, _params) do
-    socket
-    |> assign(:page_title, "Settings")
-  end
-
-  defp apply_action(socket, :loadouts, _params) do
-    socket
-    |> assign(:page_title, "Loadouts")
-  end
-
-  defp apply_action(socket, :connections, _params) do
-    socket
-    |> assign(:page_title, "Connections")
-    |> assign(:add_connection_type, nil)
-  end
-
-  defp apply_action(socket, :add_connection, %{"type" => type}) do
-    socket
-    |> assign(:page_title, "Add Connection")
-    |> assign(:add_connection_type, type)
+    {:noreply, socket}
   end
 
   defp parse_page(nil), do: 1
@@ -159,24 +54,6 @@ defmodule InvaderWeb.DashboardLive do
     case Integer.parse(page) do
       {n, ""} when n > 0 -> n
       _ -> 1
-    end
-  end
-
-  defp maybe_subscribe_to_wave(socket, mission) do
-    # Unsubscribe from previous wave if any
-    if socket.assigns[:subscribed_wave_topic] do
-      Phoenix.PubSub.unsubscribe(Invader.PubSub, socket.assigns.subscribed_wave_topic)
-    end
-
-    # Find running wave and subscribe
-    running_wave = Enum.find(mission.waves, &is_nil(&1.exit_code))
-
-    if running_wave && connected?(socket) do
-      topic = "wave:#{running_wave.id}"
-      Phoenix.PubSub.subscribe(Invader.PubSub, topic)
-      assign(socket, :subscribed_wave_topic, topic)
-    else
-      assign(socket, :subscribed_wave_topic, nil)
     end
   end
 
@@ -190,39 +67,6 @@ defmodule InvaderWeb.DashboardLive do
     {:noreply, load_data(socket)}
   end
 
-  @impl true
-  def handle_info({InvaderWeb.SpriteFormComponent, {:saved, _sprite}}, socket) do
-    {:noreply, load_data(socket)}
-  end
-
-  @impl true
-  def handle_info({InvaderWeb.MissionFormComponent, {:saved, _mission}}, socket) do
-    {:noreply, load_data(socket)}
-  end
-
-  @impl true
-  def handle_info({:load_sprite_metrics, sprite_name, component_id}, socket) do
-    # Load metrics asynchronously - capture self() for the callback
-    parent = self()
-
-    Task.start(fn ->
-      case Invader.SpriteCli.Cli.get_metrics(sprite_name) do
-        {:ok, metrics} ->
-          send_update(parent, InvaderWeb.SpriteDetailComponent,
-            id: component_id,
-            sprite_metrics_loaded: metrics
-          )
-
-        {:error, reason} ->
-          send_update(parent, InvaderWeb.SpriteDetailComponent,
-            id: component_id,
-            sprite_metrics_error: inspect(reason)
-          )
-      end
-    end)
-
-    {:noreply, socket}
-  end
 
   @impl true
   def handle_info({:settings_changed, :auto_start_queue, value}, socket) do
@@ -244,23 +88,6 @@ defmodule InvaderWeb.DashboardLive do
     {:noreply, assign(socket, :time_format, value)}
   end
 
-  @impl true
-  def handle_info({:wave_output, chunk}, socket) do
-    # Forward output chunk to MissionDetailComponent
-    if socket.assigns[:mission] do
-      send_update(InvaderWeb.MissionDetailComponent,
-        id: socket.assigns.mission.id,
-        live_output_chunk: chunk
-      )
-    end
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_info({:open_loadouts_modal}, socket) do
-    {:noreply, push_patch(socket, to: ~p"/loadouts")}
-  end
 
   @impl true
   def handle_info({:sprites_synced, _sprites}, socket) do
@@ -342,19 +169,6 @@ defmodule InvaderWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("restore_save", %{"id" => id}, socket) do
-    case Saves.Save.get(id) do
-      {:ok, save} ->
-        save = Ash.load!(save, :sprite)
-        Invader.SpriteCli.Cli.restore(save.sprite.name, save.checkpoint_id)
-        {:noreply, put_flash(socket, :info, "Restored checkpoint #{save.checkpoint_id}")}
-
-      _ ->
-        {:noreply, socket}
-    end
-  end
-
-  @impl true
   def handle_event("delete_sprite", %{"id" => id}, socket) do
     case Sprites.Sprite.get(id) do
       {:ok, sprite} ->
@@ -386,31 +200,7 @@ defmodule InvaderWeb.DashboardLive do
         {:noreply,
          socket
          |> put_flash(:info, "Mission deleted")
-         |> push_patch(to: ~p"/")
          |> load_data()}
-
-      _ ->
-        {:noreply, socket}
-    end
-  end
-
-  @impl true
-  def handle_event("delete_save", %{"id" => id}, socket) do
-    case Saves.Save.get(id) do
-      {:ok, save} ->
-        mission_id = save.mission_id
-        Ash.destroy!(save)
-
-        # Reload checkpoints if we're viewing this mission
-        socket =
-          if socket.assigns[:mission] && socket.assigns.mission.id == mission_id do
-            checkpoints = Saves.Save.for_mission!(mission_id)
-            assign(socket, :mission_checkpoints, checkpoints)
-          else
-            socket
-          end
-
-        {:noreply, put_flash(socket, :info, "Checkpoint deleted")}
 
       _ ->
         {:noreply, socket}
@@ -443,21 +233,9 @@ defmodule InvaderWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("toggle_timezone", _params, socket) do
-    new_value = Invader.Settings.toggle_timezone_mode()
-    {:noreply, assign(socket, :timezone_mode, new_value)}
-  end
-
-  @impl true
   def handle_event("set_user_timezone", %{"timezone" => timezone}, socket) do
     Invader.Settings.set_user_timezone(timezone)
     {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("toggle_time_format", _params, socket) do
-    new_value = Invader.Settings.toggle_time_format()
-    {:noreply, assign(socket, :time_format, new_value)}
   end
 
   @impl true
@@ -561,157 +339,8 @@ defmodule InvaderWeb.DashboardLive do
     >
       <!-- CRT Scanlines Overlay -->
       <div class="crt-overlay pointer-events-none fixed inset-0 z-40" aria-hidden="true"></div>
-      
-    <!-- Modals -->
-      <.modal
-        :if={@live_action in [:new_sprite, :edit_sprite]}
-        id={"sprite-modal-#{@live_action}"}
-        show
-      >
-        <:title>{(@live_action == :new_sprite && "NEW SPRITE") || "EDIT SPRITE"}</:title>
-        <.live_component
-          module={InvaderWeb.SpriteFormComponent}
-          id={@sprite.id || :new}
-          sprite={@sprite}
-          action={(@live_action == :new_sprite && :new) || :edit}
-        />
-      </.modal>
 
-      <.modal
-        :if={@live_action in [:new_mission, :edit_mission]}
-        id={"mission-modal-#{@live_action}"}
-        show
-      >
-        <:title>{(@live_action == :new_mission && "NEW MISSION") || "EDIT MISSION"}</:title>
-        <.live_component
-          module={InvaderWeb.MissionFormComponent}
-          id={@mission.id || :new}
-          mission={@mission}
-          action={(@live_action == :new_mission && :new) || :edit}
-        />
-      </.modal>
-
-      <.modal
-        :if={@live_action == :show_mission}
-        id={"mission-detail-modal-#{@mission && @mission.id}"}
-        show
-      >
-        <:title>MISSION DETAILS</:title>
-        <.live_component
-          module={InvaderWeb.MissionDetailComponent}
-          id={@mission.id}
-          mission={@mission}
-          checkpoints={@mission_checkpoints}
-        />
-      </.modal>
-
-      <.modal
-        :if={@live_action == :show_sprite}
-        id={"sprite-detail-modal-#{@sprite && @sprite.id}"}
-        show
-      >
-        <:title>SPRITE DETAILS</:title>
-        <.live_component
-          module={InvaderWeb.SpriteDetailComponent}
-          id={@sprite.id}
-          sprite={@sprite}
-        />
-      </.modal>
-
-      <.modal :if={@live_action == :settings} id="settings-modal" show on_cancel={JS.patch(~p"/")}>
-        <:title>SETTINGS</:title>
-        <div class="space-y-6">
-          <!-- Timezone Setting -->
-          <div class="space-y-2">
-            <div class="flex justify-between items-center">
-              <div>
-                <div class="text-cyan-500 text-[10px]">TIME DISPLAY</div>
-                <div class="text-cyan-700 text-[8px] mt-1">
-                  Show times in UTC or your local timezone
-                </div>
-              </div>
-              <button
-                phx-click="toggle_timezone"
-                class={"arcade-btn text-[10px] py-2 px-4 #{if @timezone_mode == :utc, do: "border-cyan-500 text-cyan-400", else: "border-fuchsia-500 text-fuchsia-400"}"}
-              >
-                {if @timezone_mode == :utc, do: "UTC", else: TimezoneHelper.timezone_label()}
-              </button>
-            </div>
-          </div>
-          
-    <!-- Time Format Setting -->
-          <div class="space-y-2">
-            <div class="flex justify-between items-center">
-              <div>
-                <div class="text-cyan-500 text-[10px]">TIME FORMAT</div>
-                <div class="text-cyan-700 text-[8px] mt-1">
-                  Display time in 12-hour or 24-hour format
-                </div>
-              </div>
-              <button
-                phx-click="toggle_time_format"
-                class="arcade-btn text-[10px] py-2 px-4 border-cyan-500 text-cyan-400"
-              >
-                {if @time_format == :"24h", do: "24H", else: "12H"}
-              </button>
-            </div>
-          </div>
-          
-    <!-- Auto-start Queue Setting -->
-          <div class="space-y-2">
-            <div class="flex justify-between items-center">
-              <div>
-                <div class="text-cyan-500 text-[10px]">AUTO-START QUEUE</div>
-                <div class="text-cyan-700 text-[8px] mt-1">
-                  Automatically start next pending mission
-                </div>
-              </div>
-              <button
-                phx-click="toggle_auto_start"
-                class={"arcade-btn text-[10px] py-2 px-4 #{if @auto_start_queue, do: "border-green-500 text-green-400", else: "border-cyan-700 text-cyan-600"}"}
-              >
-                {if @auto_start_queue, do: "ON", else: "OFF"}
-              </button>
-            </div>
-          </div>
-          
-    <!-- Close Button -->
-          <div class="flex justify-end pt-4 border-t border-cyan-800">
-            <.link
-              patch={~p"/"}
-              class="arcade-btn border-cyan-500 text-cyan-400 hover:bg-cyan-900/30"
-            >
-              CLOSE
-            </.link>
-          </div>
-        </div>
-      </.modal>
-
-      <.modal :if={@live_action == :loadouts} id="loadouts-modal" show on_cancel={JS.patch(~p"/")}>
-        <:title>LOADOUTS</:title>
-        <.live_component
-          module={InvaderWeb.LoadoutsComponent}
-          id="loadouts-manager"
-        />
-      </.modal>
-
-      <.modal
-        :if={@live_action in [:connections, :add_connection]}
-        id="connections-modal"
-        show
-        on_cancel={JS.patch(~p"/")}
-      >
-        <:title>
-          {if @live_action == :add_connection, do: "ADD CONNECTION", else: "CONNECTIONS"}
-        </:title>
-        <.live_component
-          module={InvaderWeb.ConnectionsComponent}
-          id="connections-manager"
-          add_connection_type={assigns[:add_connection_type]}
-        />
-      </.modal>
-      
-    <!-- Animated Aliens Header Decoration -->
+      <!-- Animated Aliens Header Decoration -->
       <div class="hidden sm:flex justify-center gap-4 mb-2 text-2xl">
         <span class="alien-sprite text-cyan-400"></span>
         <span class="alien-sprite text-magenta-400" style="animation-delay: 0.2s;"></span>
@@ -765,7 +394,7 @@ defmodule InvaderWeb.DashboardLive do
             </svg>
           </button>
           <.link
-            patch={~p"/connections"}
+            navigate={~p"/connections"}
             class="arcade-btn border-cyan-700 text-cyan-500 p-1.5 hover:border-cyan-400 hover:text-cyan-400"
             title="Connections"
           >
@@ -818,8 +447,7 @@ defmodule InvaderWeb.DashboardLive do
               </div>
               <div class="p-1 bg-black">
                 <.link
-                  patch={~p"/settings"}
-                  phx-click={JS.push("close_profile_menu")}
+                  navigate={~p"/settings"}
                   class="flex items-center w-full text-left px-3 py-2 text-[10px] text-cyan-500 hover:bg-cyan-900/50 hover:text-cyan-400 transition-colors"
                 >
                   <!-- 8-bit Gear Icon -->
@@ -938,7 +566,7 @@ defmodule InvaderWeb.DashboardLive do
                 ]}>
                   <div class="flex justify-between items-start">
                     <.link
-                      patch={~p"/missions/#{mission.id}"}
+                      navigate={~p"/missions/#{mission.id}"}
                       class="flex-1 cursor-pointer"
                     >
                       <div class="text-white text-xs">
@@ -993,7 +621,7 @@ defmodule InvaderWeb.DashboardLive do
                     </div>
                   </div>
                   <!-- Progress bar -->
-                  <.link patch={~p"/missions/#{mission.id}"} class="block">
+                  <.link navigate={~p"/missions/#{mission.id}"} class="block">
                     <div class={[
                       "mt-3 h-2 bg-black border overflow-hidden cursor-pointer",
                       mission.status == :paused && "border-yellow-700",
@@ -1031,7 +659,7 @@ defmodule InvaderWeb.DashboardLive do
                 {if @auto_start_queue, do: "AUTO ●", else: "AUTO ○"}
               </button>
               <.link
-                patch={~p"/missions/new"}
+                navigate={~p"/missions/new"}
                 class="arcade-btn border-cyan-500 text-cyan-400 text-[8px] py-1.5 px-2 sm:py-1 sm:px-2"
               >
                 + NEW
@@ -1047,7 +675,7 @@ defmodule InvaderWeb.DashboardLive do
                 <div class="border border-yellow-700 p-2 hover:bg-yellow-900/10 transition-colors">
                   <div class="flex justify-between items-start gap-2">
                     <.link
-                      patch={~p"/missions/#{mission.id}"}
+                      navigate={~p"/missions/#{mission.id}"}
                       class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"
                     >
                       <span class="text-yellow-500 text-xs flex-shrink-0">{idx + 1}.</span>
@@ -1075,7 +703,7 @@ defmodule InvaderWeb.DashboardLive do
                     </.link>
                     <div class="flex gap-1 sm:gap-2 flex-shrink-0">
                       <.link
-                        patch={~p"/missions/#{mission.id}/edit"}
+                        navigate={~p"/missions/#{mission.id}/edit"}
                         class="arcade-btn border-cyan-500 text-cyan-400 text-[8px] py-1.5 px-1.5 sm:py-1 sm:px-2"
                       >
                         EDIT
@@ -1123,7 +751,7 @@ defmodule InvaderWeb.DashboardLive do
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <%= for mission <- @completed_missions do %>
                 <.link
-                  patch={~p"/missions/#{mission.id}"}
+                  navigate={~p"/missions/#{mission.id}"}
                   class={"border p-2 flex justify-between items-center hover:bg-white/5 cursor-pointer block #{status_border_class(mission.status)}"}
                 >
                   <div class="min-w-0 flex-1">
@@ -1257,7 +885,7 @@ defmodule InvaderWeb.DashboardLive do
                 SYNC
               </button>
               <.link
-                patch={~p"/sprites/new"}
+                navigate={~p"/sprites/new"}
                 class="arcade-btn border-green-500 text-green-400 text-[8px] py-1.5 px-2 sm:py-1 sm:px-2"
               >
                 + ADD
@@ -1269,7 +897,7 @@ defmodule InvaderWeb.DashboardLive do
           <div class="flex flex-wrap gap-2 sm:gap-3">
             <%= for sprite <- @sprites do %>
               <.link
-                patch={~p"/sprites/#{sprite.id}"}
+                navigate={~p"/sprites/#{sprite.id}"}
                 class={"border-2 px-2 py-1.5 sm:px-3 sm:py-2 hover:bg-white/5 transition-colors block cursor-pointer #{sprite_status_class(sprite.status)}"}
               >
                 <div class="flex items-center gap-1.5 sm:gap-2">
@@ -1291,7 +919,7 @@ defmodule InvaderWeb.DashboardLive do
               Connect to Sprites to sync and manage your fleet
             </p>
             <.link
-              patch={~p"/connections/add/sprites"}
+              navigate={~p"/connections/add/sprites"}
               class="arcade-btn border-green-500 text-green-400 text-[10px] py-2 px-4 inline-flex items-center gap-2"
             >
               <.sprites_icon />

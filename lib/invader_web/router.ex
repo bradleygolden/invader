@@ -53,25 +53,25 @@ defmodule InvaderWeb.Router do
       live "/", DashboardLive, :index
       live "/dashboard", DashboardLive, :index
 
-      # Sprite modal routes
-      live "/sprites/new", DashboardLive, :new_sprite
-      live "/sprites/:id", DashboardLive, :show_sprite
-      live "/sprites/:id/edit", DashboardLive, :edit_sprite
+      # Sprite routes (dedicated LiveViews)
+      live "/sprites/new", SpriteLive.Form, :new
+      live "/sprites/:id", SpriteLive.Show, :show
+      live "/sprites/:id/edit", SpriteLive.Form, :edit
 
-      # Mission modal routes
-      live "/missions/new", DashboardLive, :new_mission
-      live "/missions/:id", DashboardLive, :show_mission
-      live "/missions/:id/edit", DashboardLive, :edit_mission
+      # Mission routes (dedicated LiveViews)
+      live "/missions/new", MissionLive.Form, :new
+      live "/missions/:id", MissionLive.Show, :show
+      live "/missions/:id/edit", MissionLive.Form, :edit
 
-      # Settings modal route
-      live "/settings", DashboardLive, :settings
+      # Settings (dedicated LiveView)
+      live "/settings", SettingsLive, :index
 
-      # Loadouts modal route
-      live "/loadouts", DashboardLive, :loadouts
+      # Loadouts (dedicated LiveView)
+      live "/loadouts", LoadoutsLive, :index
 
-      # Connections modal route
-      live "/connections", DashboardLive, :connections
-      live "/connections/add/:type", DashboardLive, :add_connection
+      # Connections (dedicated LiveView)
+      live "/connections", ConnectionsLive, :index
+      live "/connections/add/:type", ConnectionsLive, :add
 
       # Scope presets management
       live "/scopes", ScopePresetsLive, :index
