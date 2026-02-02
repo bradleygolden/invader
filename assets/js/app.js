@@ -76,6 +76,72 @@ const CopyToClipboard = {
   }
 }
 
+const FlashAutoDismiss = {
+  mounted() {
+    this.duration = parseInt(this.el.dataset.dismissAfter) || 5000
+    this.remaining = this.duration
+    this.isPaused = false
+    this.lastTick = Date.now()
+    this.progressBar = this.el.querySelector('[data-progress-bar]')
+    this.blocks = this.progressBar ? this.progressBar.querySelectorAll('[data-block]') : []
+    this.totalBlocks = this.blocks.length
+
+    // Start the timer
+    this.tick()
+
+    // Pause on hover
+    this.el.addEventListener('mouseenter', () => {
+      this.isPaused = true
+    })
+
+    // Resume on mouse leave
+    this.el.addEventListener('mouseleave', () => {
+      this.isPaused = false
+      this.lastTick = Date.now()
+      this.tick()
+    })
+  },
+
+  tick() {
+    if (this.isPaused) return
+
+    const now = Date.now()
+    const elapsed = now - this.lastTick
+    this.lastTick = now
+    this.remaining -= elapsed
+
+    // Update progress bar blocks
+    this.updateProgress()
+
+    if (this.remaining <= 0) {
+      // Dismiss the flash
+      this.el.remove()
+      // Clear the flash from LiveView
+      this.pushEvent("lv:clear-flash", {key: this.el.dataset.flashKind})
+    } else {
+      // Continue ticking
+      requestAnimationFrame(() => this.tick())
+    }
+  },
+
+  updateProgress() {
+    const progress = Math.max(0, this.remaining / this.duration)
+    const visibleBlocks = Math.ceil(progress * this.totalBlocks)
+
+    this.blocks.forEach((block, index) => {
+      if (index < visibleBlocks) {
+        block.style.opacity = '1'
+      } else {
+        block.style.opacity = '0'
+      }
+    })
+  },
+
+  destroyed() {
+    this.isPaused = true
+  }
+}
+
 const ArcadeAudio = {
   mounted() {
     this.audioContext = null
@@ -294,7 +360,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, TimezoneDetector, ScrollToBottom, ArcadeAudio, CopyToClipboard},
+  hooks: {...colocatedHooks, TimezoneDetector, ScrollToBottom, ArcadeAudio, CopyToClipboard, FlashAutoDismiss},
 })
 
 // Navigate back in browser history when requested by server

@@ -4,14 +4,19 @@ defmodule InvaderWeb.PageLayout do
   """
   use Phoenix.Component
 
+  import InvaderWeb.CoreComponents, only: [flash: 1]
+
   attr :page_title, :string, default: "Invader"
   attr :show_back_button, :boolean, default: true
   attr :back_link, :string, default: "/"
+  attr :flash, :map, default: %{}
   slot :inner_block, required: true
   slot :header_actions
 
   def arcade_page(assigns) do
     ~H"""
+    <.flash kind={:info} flash={@flash} />
+    <.flash kind={:error} flash={@flash} />
     <main
       class="arcade-container min-h-screen bg-black p-2 sm:p-4 relative z-10"
       role="main"

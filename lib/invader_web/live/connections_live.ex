@@ -279,9 +279,10 @@ defmodule InvaderWeb.ConnectionsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.arcade_page page_title={
-      if @show_form && !@editing_connection, do: "ADD CONNECTION", else: "CONNECTIONS"
-    }>
+    <.arcade_page
+      page_title={if @show_form && !@editing_connection, do: "ADD CONNECTION", else: "CONNECTIONS"}
+      flash={@flash}
+    >
       <div class="text-xs">
         <div class="space-y-4">
           <!-- Connections List -->
@@ -316,6 +317,7 @@ defmodule InvaderWeb.ConnectionsLive do
                       <button
                         phx-click="test_connection"
                         phx-value-id={connection.id}
+                        phx-disable-with="TESTING..."
                         class="arcade-btn border-cyan-500 text-cyan-400 text-[8px] py-1 px-2"
                       >
                         TEST

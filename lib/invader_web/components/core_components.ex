@@ -55,32 +55,68 @@ defmodule InvaderWeb.CoreComponents do
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
+      phx-hook={@kind == :info && "FlashAutoDismiss"}
+      data-dismiss-after={@kind == :info && "5000"}
+      data-flash-kind={@kind}
       role="alert"
       class="toast toast-top toast-end z-50"
       {@rest}
     >
       <div
         class={[
-          "w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap p-3 border-2 bg-black",
+          "w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap border-2 bg-black",
           @kind == :info && "border-cyan-500 text-cyan-400",
           @kind == :error && "border-red-500 text-red-400"
         ]}
         style="font-family: 'Press Start 2P', monospace; font-size: 10px;"
       >
-        <div class="flex items-start gap-2">
-          <span :if={@kind == :info} class="text-cyan-400">▸</span>
-          <span :if={@kind == :error} class="text-red-400">!</span>
+        <div class="flex items-start gap-3 p-3">
+          <svg
+            :if={@kind == :error}
+            viewBox="0 0 8 10"
+            class="w-4 h-5 fill-current text-red-400 flex-shrink-0 mt-0.5"
+            style="image-rendering: pixelated;"
+          >
+            <rect x="3" y="0" width="2" height="6" />
+            <rect x="3" y="8" width="2" height="2" />
+          </svg>
           <div class="flex-1">
             <p :if={@title} class="font-semibold mb-1">{@title}</p>
             <p>{msg}</p>
           </div>
           <button
             type="button"
-            class="group cursor-pointer text-current opacity-60 hover:opacity-100"
+            class="group cursor-pointer opacity-60 hover:opacity-100 flex-shrink-0"
             aria-label={gettext("close")}
           >
-            ✕
+            <svg
+              viewBox="0 0 8 8"
+              class="w-4 h-4 fill-current"
+              style="image-rendering: pixelated;"
+            >
+              <rect x="0" y="0" width="2" height="2" />
+              <rect x="6" y="0" width="2" height="2" />
+              <rect x="1" y="1" width="2" height="2" />
+              <rect x="5" y="1" width="2" height="2" />
+              <rect x="2" y="2" width="2" height="2" />
+              <rect x="4" y="2" width="2" height="2" />
+              <rect x="3" y="3" width="2" height="2" />
+              <rect x="2" y="4" width="2" height="2" />
+              <rect x="4" y="4" width="2" height="2" />
+              <rect x="1" y="5" width="2" height="2" />
+              <rect x="5" y="5" width="2" height="2" />
+              <rect x="0" y="6" width="2" height="2" />
+              <rect x="6" y="6" width="2" height="2" />
+            </svg>
           </button>
+        </div>
+        <!-- Progress bar for auto-dismiss (info only) -->
+        <div
+          :if={@kind == :info}
+          data-progress-bar
+          class="flex h-1 bg-black"
+        >
+          <div :for={_ <- 1..20} data-block class="flex-1 bg-cyan-500 transition-opacity duration-100" />
         </div>
       </div>
     </div>
