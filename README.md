@@ -76,4 +76,4 @@ Visit [localhost:4000](http://localhost:4000). Enter `ADMIN_SETUP_TOKEN` from `.
 
 ## License
 
-MIT
+Apache 2.0
