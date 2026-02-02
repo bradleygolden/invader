@@ -97,11 +97,11 @@ echo "  Sprite:       $SPRITE_NAME"
 echo "  Version:      $VERSION"
 echo ""
 echo "This will:"
-echo "  - Stop the running Invader daemon"
+echo "  - Stop the running Invader service"
 echo "  - Backup the current release"
 echo "  - Download and install the new release"
 echo "  - Run database migrations"
-echo "  - Start the new daemon"
+echo "  - Restart the service"
 echo ""
 echo -e "${GREEN}Your database and configuration will be preserved.${NC}"
 echo ""
@@ -156,13 +156,11 @@ sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
     exit 1
   fi
 
-  # Stop the running daemon
+  # Stop the running service
   echo ''
-  echo 'Stopping Invader daemon...'
-  if [ -f \"\$INVADER_DIR/bin/invader\" ]; then
-    \"\$INVADER_DIR/bin/invader\" stop 2>/dev/null || true
-    sleep 2
-  fi
+  echo 'Stopping Invader service...'
+  /.sprite/bin/sprite-env services stop invader 2>/dev/null || true
+  sleep 2
 
   # Backup current release
   echo \"Backing up current release to: \$BACKUP_DIR\"
@@ -175,7 +173,7 @@ sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
     echo 'Error: Failed to download release'
     echo 'Restoring backup...'
     mv \"\$BACKUP_DIR\" \"\$INVADER_DIR\"
-    \"\$INVADER_DIR/bin/invader\" daemon
+    /.sprite/bin/sprite-env services start invader
     exit 1
   fi
 
@@ -190,15 +188,15 @@ sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
   set -a && source \"\$ENV_FILE\" && set +a
   \"\$INVADER_DIR/bin/invader\" eval 'for repo <- Application.fetch_env!(:invader, :ecto_repos), do: Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))'
 
-  # Start new daemon
+  # Start service
   echo ''
-  echo 'Starting new daemon...'
-  \"\$INVADER_DIR/bin/invader\" daemon
+  echo 'Starting Invader service...'
+  /.sprite/bin/sprite-env services start invader --no-stream
 
   # Verify running
   echo 'Waiting for application to start...'
   for i in {1..15}; do
-    if \"\$INVADER_DIR/bin/invader\" pid > /dev/null 2>&1; then
+    if curl -sf http://localhost:8080/sign-in > /dev/null 2>&1; then
       echo ''
       echo '═══════════════════════════════════════════════════════════════'
       echo '  ✅ Update successful!'
@@ -216,7 +214,7 @@ sprite exec -o "$ORG" -s "$SPRITE_NAME" -- bash -c "
 
   echo ''
   echo '⚠ Warning: Application may still be starting.'
-  echo 'Check logs with: sprite exec -o $ORG -s $SPRITE_NAME -- tail -f invader/tmp/log/erlang.log.1'
+  echo 'Check logs with: sprite exec -o $ORG -s $SPRITE_NAME -- tail -f /.sprite/logs/services/invader.log'
 " < /dev/null
 
 # Get public URL
@@ -234,13 +232,13 @@ if [ -n "$PUBLIC_URL" ]; then
   echo ""
 fi
 echo -e "${YELLOW}To view logs:${NC}"
-echo "  sprite exec -o $ORG -s $SPRITE_NAME -- tail -f invader/tmp/log/erlang.log.1"
+echo "  sprite exec -o $ORG -s $SPRITE_NAME -- tail -f /.sprite/logs/services/invader.log"
 echo ""
 echo -e "${YELLOW}To rollback:${NC}"
 echo "  sprite exec -o $ORG -s $SPRITE_NAME -- bash -c '"
-echo "    ./invader/bin/invader stop"
+echo "    /.sprite/bin/sprite-env services stop invader"
 echo "    rm -rf ~/invader"
 echo "    mv ~/invader.backup.* ~/invader"
-echo "    ./invader/bin/invader daemon"
+echo "    /.sprite/bin/sprite-env services start invader"
 echo "  '"
 echo ""

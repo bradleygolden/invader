@@ -137,7 +137,11 @@ show_final_output() {
   echo "  sprite exec -o $ORG -s $SPRITE_NAME -- <command>"
   echo ""
   echo -e "${YELLOW}To view logs:${NC}"
-  echo "  sprite exec -o $ORG -s $SPRITE_NAME -- tail -f invader/tmp/log/erlang.log.1"
+  echo "  sprite exec -o $ORG -s $SPRITE_NAME -- tail -f /.sprite/logs/services/invader.log"
+  echo ""
+  echo -e "${YELLOW}To manage the service:${NC}"
+  echo "  sprite exec -o $ORG -s $SPRITE_NAME -- /.sprite/bin/sprite-env services list"
+  echo "  sprite exec -o $ORG -s $SPRITE_NAME -- /.sprite/bin/sprite-env services restart invader"
 }
 
 # Deploy app on sprite
@@ -201,9 +205,14 @@ ENVEOF
   set -a && source .env && set +a
   ./invader/bin/invader eval 'for repo <- Application.fetch_env!(:invader, :ecto_repos), do: Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))'
 
-  # Start app in background
-  echo 'Starting application...'
-  ./invader/bin/invader daemon
+  # Register as a sprite service (auto-restarts on sprite wake/crash)
+  echo 'Registering invader service...'
+  /.sprite/bin/sprite-env services create invader \
+    --cmd /bin/bash \
+    --args '-c,set -a && source ~/.env && set +a && exec ./invader/bin/invader start' \
+    --dir /home/sprite \
+    --http-port 8080 \
+    --no-stream
 
   echo 'Waiting for application to start...'
   for i in {1..30}; do
