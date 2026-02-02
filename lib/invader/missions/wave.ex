@@ -17,6 +17,7 @@ defmodule Invader.Missions.Wave do
     define :get, action: :read, get_by: [:id]
     define :record, action: :record
     define :finish, action: :finish
+    define :find_running, action: :find_running, args: [:mission_id, :number]
   end
 
   actions do
@@ -30,6 +31,15 @@ defmodule Invader.Missions.Wave do
     update :finish do
       accept [:output, :exit_code]
       change set_attribute(:finished_at, &DateTime.utc_now/0)
+    end
+
+    read :find_running do
+      argument :mission_id, :uuid, allow_nil?: false
+      argument :number, :integer, allow_nil?: false
+
+      filter expr(mission_id == ^arg(:mission_id) and number == ^arg(:number) and is_nil(finished_at))
+
+      get? true
     end
   end
 

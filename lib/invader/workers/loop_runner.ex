@@ -112,12 +112,23 @@ defmodule Invader.Workers.LoopRunner do
     wave_number = mission.current_wave + 1
     Logger.info("Starting wave #{wave_number} for mission #{mission.id}")
 
-    # Record wave start
-    {:ok, wave} =
-      Wave.record(%{
-        mission_id: mission.id,
-        number: wave_number
-      })
+    # Check for existing running wave (from a retry after kill)
+    wave =
+      case Wave.find_running(mission.id, wave_number) do
+        {:ok, existing_wave} ->
+          Logger.info("Resuming existing wave #{wave_number} for mission #{mission.id}")
+          existing_wave
+
+        _ ->
+          # Record new wave start
+          {:ok, new_wave} =
+            Wave.record(%{
+              mission_id: mission.id,
+              number: wave_number
+            })
+
+          new_wave
+      end
 
     # Get and process prompt with context injection
     raw_prompt = get_prompt(mission)
