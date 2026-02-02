@@ -14,7 +14,8 @@ defmodule Invader.Repo.Migrations.AddMissionGithubRepos do
             column: :id,
             name: "mission_github_repos_mission_id_fkey",
             type: :uuid
-          ), null: false
+          ),
+          null: false
 
       add :updated_at, :utc_datetime_usec, null: false
       add :inserted_at, :utc_datetime_usec, null: false
