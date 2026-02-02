@@ -4,8 +4,10 @@ defmodule InvaderWeb.MissionLive.Show do
   """
   use InvaderWeb, :live_view
 
+  alias Invader.Agents.AgentConfig
   alias Invader.Missions
   alias Invader.Saves
+  alias Invader.SpriteCli.Cli
 
   import InvaderWeb.PageLayout
 
@@ -189,6 +191,41 @@ defmodule InvaderWeb.MissionLive.Show do
   end
 
   @impl true
+  def handle_event("mark_setup_complete", _params, socket) do
+    mission = socket.assigns.mission
+
+    case Missions.Mission.setup_complete(mission) do
+      {:ok, _} ->
+        mission = Ash.load!(Missions.Mission.get!(mission.id), [:sprite, :waves])
+
+        {:noreply,
+         socket
+         |> assign(:mission, mission)
+         |> put_flash(:info, "Setup complete - mission is ready to start")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to mark setup as complete")}
+    end
+  end
+
+  @impl true
+  def handle_event("inject_api_key", %{"api_key" => api_key}, socket) do
+    mission = socket.assigns.mission
+
+    if api_key && api_key != "" do
+      case Cli.inject_agent_config(mission.sprite.name, mission.agent_provider, api_key) do
+        {:ok, _} ->
+          {:noreply, put_flash(socket, :info, "API key injected successfully")}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, "Failed to inject API key: #{inspect(reason)}")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "Please enter an API key")}
+    end
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <.arcade_page page_title="MISSION DETAILS">
@@ -233,7 +270,12 @@ defmodule InvaderWeb.MissionLive.Show do
         <div class="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span class="text-cyan-600">SPRITE</span>
-            <div class="text-cyan-400">{@mission.sprite.name}</div>
+            <div class="text-cyan-400">
+              {@mission.sprite && @mission.sprite.name || @mission.sprite_name}
+              <%= if @mission.status == :provisioning do %>
+                <span class="text-orange-400 text-[8px] ml-2 animate-pulse">PROVISIONING...</span>
+              <% end %>
+            </div>
           </div>
           <div>
             <span class="text-cyan-600">STATUS</span>
@@ -269,6 +311,80 @@ defmodule InvaderWeb.MissionLive.Show do
           <div class="border border-red-700 rounded p-3 bg-red-950/30">
             <span class="text-red-500 text-sm">ERROR</span>
             <div class="text-red-400 text-sm mt-1">{@mission.error_message}</div>
+          </div>
+        <% end %>
+        
+    <!-- Setup Required Banner (for provisioning/setup states) -->
+        <%= if @mission.status == :provisioning do %>
+          <div class="border border-yellow-700 rounded p-4 bg-yellow-950/30">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+              <span class="text-yellow-500 text-sm font-bold">PROVISIONING SPRITE</span>
+            </div>
+            <p class="text-yellow-400 text-xs">
+              Your sprite "{@mission.sprite_name}" is being created. This usually takes 1-2 minutes.
+            </p>
+          </div>
+        <% end %>
+
+        <%= if @mission.status == :setup do %>
+          <div class="border border-cyan-700 rounded p-4 bg-cyan-950/30 space-y-4">
+            <div class="flex items-center gap-2">
+              <span class="text-cyan-500 text-sm font-bold">SETUP REQUIRED</span>
+            </div>
+            <p class="text-cyan-400 text-xs">
+              Your sprite is ready. Configure the coding agent before starting the mission.
+            </p>
+
+            <div class="space-y-3">
+              <div class="text-cyan-500 text-[10px]">OPTION 1: MANUAL LOGIN (RECOMMENDED)</div>
+              <div class="bg-black p-3 rounded border border-cyan-900 flex items-center justify-between gap-2">
+                <code class="text-cyan-400 text-xs font-mono">
+                  sprite console -o {@mission.sprite.org} -s {@mission.sprite.name}
+                </code>
+                <button
+                  phx-hook="CopyToClipboard"
+                  id={"copy-console-cmd-#{@mission.id}"}
+                  data-clipboard-text={"sprite console -o #{@mission.sprite.org} -s #{@mission.sprite.name}"}
+                  class="text-cyan-500 hover:text-cyan-400 text-[10px] border border-cyan-700 px-2 py-1 rounded hover:border-cyan-500"
+                  title="Copy to clipboard"
+                >
+                  COPY
+                </button>
+              </div>
+              <p class="text-cyan-600 text-[9px]">{agent_auth_hint(@mission.agent_type)}</p>
+            </div>
+
+            <%= if @mission.agent_provider do %>
+              <div class="space-y-3 pt-3 border-t border-cyan-900">
+                <div class="text-cyan-500 text-[10px]">OPTION 2: API KEY INJECTION</div>
+                <form phx-submit="inject_api_key" class="space-y-2">
+                  <div class="flex gap-2">
+                    <input
+                      type="password"
+                      name="api_key"
+                      placeholder={"#{provider_name(@mission.agent_provider)} API Key..."}
+                      class="flex-1 bg-black border-2 border-cyan-700 text-white p-2 text-xs focus:border-cyan-400 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      class="arcade-btn border-cyan-600 text-cyan-400 text-[8px] py-2 px-3"
+                    >
+                      INJECT
+                    </button>
+                  </div>
+                </form>
+              </div>
+            <% end %>
+
+            <div class="pt-3 border-t border-cyan-900">
+              <button
+                phx-click="mark_setup_complete"
+                class="arcade-btn border-green-600 text-green-400 text-[10px] py-2 px-4"
+              >
+                MARK SETUP COMPLETE
+              </button>
+            </div>
           </div>
         <% end %>
         
@@ -423,9 +539,13 @@ defmodule InvaderWeb.MissionLive.Show do
   defp status_text_class(:running), do: "text-green-400 animate-pulse"
   defp status_text_class(:pausing), do: "text-yellow-400 animate-pulse"
   defp status_text_class(:paused), do: "text-yellow-400"
+  defp status_text_class(:provisioning), do: "text-yellow-400 animate-pulse"
+  defp status_text_class(:setup), do: "text-cyan-400"
   defp status_text_class(_), do: "text-cyan-400"
 
   defp status_label(:pausing), do: "PAUSING..."
+  defp status_label(:provisioning), do: "PROVISIONING..."
+  defp status_label(:setup), do: "SETUP REQUIRED"
   defp status_label(status), do: status |> to_string() |> String.upcase()
 
   defp exit_code_class(nil), do: "text-cyan-600"
@@ -496,4 +616,15 @@ defmodule InvaderWeb.MissionLive.Show do
   end
 
   defp render_markdown(_), do: ""
+
+  defp agent_auth_hint(agent_type) do
+    AgentConfig.auth_hint_for(agent_type)
+  end
+
+  defp provider_name(provider) do
+    case AgentConfig.get_provider(provider) do
+      nil -> "Custom"
+      config -> config.name
+    end
+  end
 end

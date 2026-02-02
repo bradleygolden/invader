@@ -14,17 +14,23 @@ defmodule Invader.Missions.Mission do
   end
 
   state_machine do
-    initial_states [:pending]
+    initial_states [:pending, :provisioning]
     default_initial_state :pending
 
     transitions do
+      # Sprite provisioning transitions
+      transition :sprite_ready, from: :provisioning, to: :setup
+      transition :provision_failed, from: :provisioning, to: :failed
+      transition :setup_complete, from: :setup, to: :pending
+
+      # Standard mission transitions
       transition :start, from: :pending, to: :running
       transition :pause, from: :running, to: :pausing
       transition :confirm_pause, from: :pausing, to: :paused
       transition :resume, from: [:paused, :pausing], to: :running
       transition :complete, from: :running, to: :completed
-      transition :fail, from: [:running, :paused, :pausing], to: :failed
-      transition :abort, from: [:running, :paused, :pausing, :pending], to: :aborted
+      transition :fail, from: [:running, :paused, :pausing, :setup], to: :failed
+      transition :abort, from: [:running, :paused, :pausing, :pending, :setup], to: :aborted
       # Allow scheduled missions to restart from terminal states
       transition :run_scheduled, from: [:completed, :failed, :aborted, :pending], to: :running
     end
@@ -48,6 +54,7 @@ defmodule Invader.Missions.Mission do
     define :list, action: :read
     define :get, action: :read, get_by: [:id]
     define :create, action: :create
+    define :create_with_sprite, action: :create_with_sprite
     define :update, action: :update
     define :start, action: :start
     define :pause, action: :pause
@@ -57,6 +64,9 @@ defmodule Invader.Missions.Mission do
     define :fail, action: :fail
     define :abort, action: :abort
     define :run_scheduled, action: :run_scheduled
+    define :sprite_ready, action: :sprite_ready
+    define :provision_failed, action: :provision_failed
+    define :setup_complete, action: :setup_complete
   end
 
   actions do
@@ -78,7 +88,10 @@ defmodule Invader.Missions.Mission do
         :schedule_days,
         :next_run_at,
         :scopes,
-        :scope_preset_id
+        :scope_preset_id,
+        :agent_type,
+        :agent_provider,
+        :agent_api_key
       ]
 
       validate fn changeset, _context ->
@@ -87,6 +100,16 @@ defmodule Invader.Missions.Mission do
 
         if is_nil(prompt_path) and is_nil(prompt) do
           {:error, field: :prompt, message: "either prompt or prompt_path must be provided"}
+        else
+          :ok
+        end
+      end
+
+      validate fn changeset, _context ->
+        sprite_id = Ash.Changeset.get_attribute(changeset, :sprite_id)
+
+        if is_nil(sprite_id) do
+          {:error, field: :sprite_id, message: "is required"}
         else
           :ok
         end
@@ -175,12 +198,93 @@ defmodule Invader.Missions.Mission do
       change set_attribute(:last_scheduled_run_at, &DateTime.utc_now/0)
 
       # Transition to running state
-      change transition_state(:run_scheduled)
+      change transition_state(:running)
       change set_attribute(:status, :running)
 
       # Calculate next run time and enqueue the mission
       change Invader.Missions.Changes.ScheduleNextRun
       change Invader.Missions.Changes.EnqueueLoopRunner
+    end
+
+    # Create a mission that will auto-create its own sprite
+    create :create_with_sprite do
+      accept [
+        :prompt_path,
+        :prompt,
+        :priority,
+        :max_waves,
+        :max_duration,
+        :schedule_enabled,
+        :schedule_type,
+        :schedule_cron,
+        :schedule_hour,
+        :schedule_minute,
+        :schedule_days,
+        :next_run_at,
+        :scopes,
+        :scope_preset_id,
+        :sprite_name,
+        :sprite_lifecycle,
+        :agent_type,
+        :agent_command,
+        :agent_provider,
+        :agent_base_url,
+        :agent_api_key
+      ]
+
+      change set_attribute(:sprite_auto_created, true)
+      change set_attribute(:status, :provisioning)
+      change set_attribute(:state, :provisioning)
+
+      validate fn changeset, _context ->
+        prompt_path = Ash.Changeset.get_attribute(changeset, :prompt_path)
+        prompt = Ash.Changeset.get_attribute(changeset, :prompt)
+
+        if is_nil(prompt_path) and is_nil(prompt) do
+          {:error, field: :prompt, message: "either prompt or prompt_path must be provided"}
+        else
+          :ok
+        end
+      end
+
+      validate fn changeset, _context ->
+        sprite_name = Ash.Changeset.get_attribute(changeset, :sprite_name)
+
+        if is_nil(sprite_name) or sprite_name == "" do
+          {:error,
+           field: :sprite_name, message: "sprite_name is required when creating a new sprite"}
+        else
+          :ok
+        end
+      end
+
+      change Invader.Missions.Changes.CalculateInitialNextRun
+      change Invader.Missions.Changes.EnqueueSpriteProvisioner
+    end
+
+    # Sprite provisioning transitions
+    update :sprite_ready do
+      require_atomic? false
+      accept [:sprite_id]
+
+      change transition_state(:setup)
+      change set_attribute(:status, :setup)
+    end
+
+    update :provision_failed do
+      require_atomic? false
+      accept [:error_message]
+
+      change transition_state(:failed)
+      change set_attribute(:status, :failed)
+      change set_attribute(:finished_at, &DateTime.utc_now/0)
+    end
+
+    update :setup_complete do
+      require_atomic? false
+
+      change transition_state(:pending)
+      change set_attribute(:status, :pending)
     end
   end
 
@@ -225,7 +329,7 @@ defmodule Invader.Missions.Mission do
       allow_nil? false
       default :pending
       public? true
-      constraints one_of: [:pending, :running, :pausing, :paused, :completed, :failed, :aborted]
+      constraints one_of: [:pending, :provisioning, :setup, :running, :pausing, :paused, :completed, :failed, :aborted]
     end
 
     attribute :error_message, :string do
@@ -302,12 +406,68 @@ defmodule Invader.Missions.Mission do
       description "Array of scope strings for CLI access control (e.g., ['github:pr:*', 'github:issue:view'])"
     end
 
+    # Sprite provisioning attributes
+    attribute :sprite_name, :string do
+      allow_nil? true
+      public? true
+      description "Name for auto-created sprite (e.g., mission-abc123)"
+    end
+
+    attribute :sprite_auto_created, :boolean do
+      default false
+      public? true
+      description "Whether this mission auto-created its sprite"
+    end
+
+    attribute :sprite_lifecycle, :atom do
+      default :keep
+      public? true
+      constraints one_of: [:keep, :destroy_on_complete, :destroy_on_delete]
+
+      description "When to destroy auto-created sprite: keep, destroy_on_complete, destroy_on_delete"
+    end
+
+    # Coding agent configuration
+    attribute :agent_type, :atom do
+      default :claude_code
+      public? true
+      constraints one_of: [:claude_code, :gemini_cli, :openai_codex, :custom]
+      description "Type of coding agent: claude_code, gemini_cli, openai_codex, custom"
+    end
+
+    attribute :agent_command, :string do
+      allow_nil? true
+      public? true
+      description "Custom CLI command override (uses agent_type default if not set)"
+    end
+
+    attribute :agent_provider, :atom do
+      allow_nil? true
+      public? true
+      constraints one_of: [:anthropic_subscription, :anthropic_api, :zai]
+
+      description "API provider: anthropic_subscription (login via console), anthropic_api (API key), zai (Z.ai proxy)"
+    end
+
+    attribute :agent_base_url, :string do
+      allow_nil? true
+      public? true
+      description "Custom API base URL for custom providers"
+    end
+
+    attribute :agent_api_key, :string do
+      allow_nil? true
+      public? true
+      sensitive? true
+      description "API key for automated agent setup (encrypted)"
+    end
+
     timestamps()
   end
 
   relationships do
     belongs_to :sprite, Invader.Sprites.Sprite do
-      allow_nil? false
+      allow_nil? true
     end
 
     belongs_to :scope_preset, Invader.Scopes.ScopePreset do

@@ -270,7 +270,7 @@ defmodule InvaderWeb.DashboardLive do
 
     pending =
       all_missions
-      |> Enum.filter(&(&1.status == :pending))
+      |> Enum.filter(&(&1.status in [:pending, :provisioning, :setup]))
       |> Enum.sort_by(& &1.priority, :desc)
 
     # Load completed missions with pagination using Ash's native support
@@ -670,7 +670,11 @@ defmodule InvaderWeb.DashboardLive do
           <% else %>
             <div class="space-y-2 max-h-64 overflow-y-auto arcade-scroll">
               <%= for {mission, idx} <- Enum.with_index(@pending_missions) do %>
-                <div class="border border-yellow-700 p-2 hover:bg-yellow-900/10 transition-colors">
+                <div class={"border p-2 transition-colors " <> cond do
+                  mission.status == :provisioning -> "border-orange-500 hover:bg-orange-900/10"
+                  mission.status == :setup -> "border-cyan-500 hover:bg-cyan-900/10"
+                  true -> "border-yellow-700 hover:bg-yellow-900/10"
+                end}>
                   <div class="flex justify-between items-start gap-2">
                     <.link
                       navigate={~p"/missions/#{mission.id}"}
@@ -679,7 +683,17 @@ defmodule InvaderWeb.DashboardLive do
                       <span class="text-yellow-500 text-xs flex-shrink-0">{idx + 1}.</span>
                       <div class="min-w-0">
                         <div class="text-white text-xs flex items-center gap-2 truncate">
-                          <span class="truncate">{mission.sprite.name}</span>
+                          <span class="truncate">{mission.sprite && mission.sprite.name || mission.sprite_name}</span>
+                          <%= if mission.status == :provisioning do %>
+                            <span class="text-[8px] text-orange-400 flex-shrink-0 animate-pulse">
+                              PROVISIONING...
+                            </span>
+                          <% end %>
+                          <%= if mission.status == :setup do %>
+                            <span class="text-[8px] text-cyan-400 flex-shrink-0">
+                              SETUP REQUIRED
+                            </span>
+                          <% end %>
                           <%= if mission.schedule_enabled do %>
                             <span
                               class="text-[8px] text-fuchsia-400 flex-shrink-0"
@@ -709,7 +723,8 @@ defmodule InvaderWeb.DashboardLive do
                       <button
                         phx-click="start_mission"
                         phx-value-id={mission.id}
-                        class="arcade-btn border-green-500 text-green-400 text-[8px] py-1.5 px-1.5 sm:py-1 sm:px-2"
+                        disabled={mission.status in [:provisioning, :setup]}
+                        class={"arcade-btn text-[8px] py-1.5 px-1.5 sm:py-1 sm:px-2 " <> if(mission.status in [:provisioning, :setup], do: "border-cyan-800 text-cyan-800 cursor-not-allowed", else: "border-green-500 text-green-400")}
                       >
                         START
                       </button>

@@ -116,7 +116,11 @@ defmodule InvaderWeb.CoreComponents do
           data-progress-bar
           class="flex h-1 bg-black"
         >
-          <div :for={_ <- 1..20} data-block class="flex-1 bg-cyan-500 transition-opacity duration-100" />
+          <div
+            :for={_ <- 1..20}
+            data-block
+            class="flex-1 bg-cyan-500 transition-opacity duration-100"
+          />
         </div>
       </div>
     </div>

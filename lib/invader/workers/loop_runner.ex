@@ -14,10 +14,12 @@ defmodule Invader.Workers.LoopRunner do
 
   require Logger
 
+  alias Invader.Agents.AgentConfig
   alias Invader.Missions
   alias Invader.Missions.{Mission, Wave}
   alias Invader.Prompts.{ContextBuilder, Template}
   alias Invader.SpriteCli.Cli
+  alias Invader.Workers.SpriteDestroyer
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"mission_id" => mission_id}}) do
@@ -173,8 +175,8 @@ defmodule Invader.Workers.LoopRunner do
   defp execute_wave(mission, prompt, wave_id) do
     sprite = Ash.load!(mission, :sprite).sprite
 
-    # Build the claude command with prompt piped in
-    command = build_claude_command(prompt)
+    # Build the agent command with prompt piped in (uses agent config)
+    command = build_agent_command(mission, prompt)
 
     # Topic for streaming output to subscribers
     topic = "wave:#{wave_id}"
@@ -188,10 +190,13 @@ defmodule Invader.Workers.LoopRunner do
     end
   end
 
-  defp build_claude_command(prompt) do
+  defp build_agent_command(mission, prompt) do
+    # Get the command from agent config (uses mission's agent_command override or agent_type default)
+    command = AgentConfig.command_for(mission)
+
     # Escape the prompt for shell
     escaped_prompt = prompt |> String.replace("'", "'\\''")
-    "echo '#{escaped_prompt}' | claude -p"
+    "echo '#{escaped_prompt}' | #{command}"
   end
 
   defp handle_wave_result(mission, wave_number, exit_code, _output) do
@@ -233,12 +238,23 @@ defmodule Invader.Workers.LoopRunner do
         # Update current_wave to final value before completing
         update_current_wave(current_mission.id, wave_number)
         Mission.complete(current_mission)
+        # Check if sprite should be destroyed on successful completion
+        maybe_destroy_sprite(current_mission, :completed)
         maybe_start_next_pending()
         {:ok, :completed}
 
       true ->
         # Update current_wave and schedule next wave
         schedule_next_wave(current_mission, wave_number)
+    end
+  end
+
+  defp maybe_destroy_sprite(mission, trigger) do
+    mission = Ash.load!(mission, :sprite)
+
+    if SpriteDestroyer.should_destroy?(mission, trigger) do
+      Logger.info("Scheduling sprite destruction for mission #{mission.id} (trigger: #{trigger})")
+      SpriteDestroyer.enqueue(mission.sprite.id, mission.sprite_name)
     end
   end
 

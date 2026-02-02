@@ -27,6 +27,27 @@ defmodule Invader.SpriteCli.Cli do
   end
 
   @doc """
+  Creates a new sprite via the API.
+
+  ## Options
+
+    * `:config` - Sprite configuration map (optional)
+
+  ## Examples
+
+      {:ok, sprite} = Cli.create("my-sprite")
+      {:ok, sprite} = Cli.create("my-sprite", config: %{})
+  """
+  def create(name, opts \\ []) do
+    config = Keyword.get(opts, :config, %{})
+
+    case Sprites.create(client(), name, config: config) do
+      {:ok, sprite} -> {:ok, sprite}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
   Lists all available sprites.
   Returns {:ok, list} or {:error, reason}
   """
@@ -262,6 +283,66 @@ defmodule Invader.SpriteCli.Cli do
   end
 
   @doc """
+  Injects agent configuration (API keys and environment variables) into a sprite.
+
+  This writes to Claude Code's settings file (~/.claude/settings.json) so that
+  Claude Code can authenticate with the configured provider.
+
+  ## Options
+
+    * `:base_url` - Custom API base URL for custom providers
+
+  ## Examples
+
+      # Inject Anthropic API key
+      {:ok, _} = inject_agent_config("my-sprite", :anthropic, "sk-ant-123")
+
+      # Inject Z.ai configuration
+      {:ok, _} = inject_agent_config("my-sprite", :zai, "zai-token-123")
+
+      # Inject custom provider with base URL
+      {:ok, _} = inject_agent_config("my-sprite", :custom, "token", base_url: "https://api.example.com")
+  """
+  def inject_agent_config(sprite_name, provider, api_key, opts \\ []) do
+    alias Invader.Agents.AgentConfig
+
+    env_vars = AgentConfig.env_vars_for(provider, api_key, opts)
+
+    if env_vars == [] do
+      {:ok, "No environment variables to inject"}
+    else
+      # Build the env object for Claude Code settings.json
+      env_json =
+        env_vars
+        |> Enum.map(fn {key, value} ->
+          escaped_value = String.replace(value, "\"", "\\\"")
+          "\"#{key}\": \"#{escaped_value}\""
+        end)
+        |> Enum.join(", ")
+
+      # Script to create/update Claude Code settings.json
+      # Uses jq if available, falls back to creating the file directly
+      script = """
+      mkdir -p ~/.claude
+      SETTINGS_FILE=~/.claude/settings.json
+
+      if command -v jq &> /dev/null && [ -f "$SETTINGS_FILE" ]; then
+        # Merge env vars into existing settings using jq
+        jq '.env = (.env // {}) + {#{env_json}}' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
+      else
+        # Create new settings file with env vars
+        echo '{"env": {#{env_json}}}' > "$SETTINGS_FILE"
+      fi
+
+      echo "Agent configuration injected successfully"
+      cat "$SETTINGS_FILE"
+      """
+
+      exec(sprite_name, script)
+    end
+  end
+
+  @doc """
   Checks if a sprite is available and responding.
   """
   def health_check(sprite_name) do
@@ -401,7 +482,7 @@ defmodule Invader.SpriteCli.Cli do
     sprite = sprite(sprite_name)
 
     # Start bash with the claude command
-    command = "claude -p --output-format=stream-json"
+    command = "claude -p --verbose --output-format=stream-json"
 
     case Sprites.spawn(sprite, "bash", ["-c", command]) do
       {:ok, cmd} ->

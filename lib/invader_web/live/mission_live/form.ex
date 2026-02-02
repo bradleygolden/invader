@@ -4,6 +4,7 @@ defmodule InvaderWeb.MissionLive.Form do
   """
   use InvaderWeb, :live_view
 
+  alias Invader.Agents.AgentConfig
   alias Invader.Missions.Mission
   alias Invader.Missions.GithubRepo
   alias Invader.Sprites.Sprite
@@ -11,6 +12,7 @@ defmodule InvaderWeb.MissionLive.Form do
   alias Invader.Scopes.ScopePreset
   alias Invader.Connections.Connection
   alias Invader.Connections.GitHub.Executor, as: GitHubExecutor
+  alias Invader.Credentials.SavedCredential
   alias Invader.Settings
   alias InvaderWeb.TimezoneHelper
 
@@ -108,6 +110,17 @@ defmodule InvaderWeb.MissionLive.Form do
         []
       end
 
+    # Sprite creation mode (only for new missions)
+    create_new_sprite = action == :new && Enum.empty?(sprite_options)
+    sprite_name = if action == :new, do: generate_sprite_name(), else: nil
+    sprite_lifecycle = :keep
+    agent_type = :claude_code
+    agent_provider = :anthropic_subscription
+    agent_api_key = ""
+
+    # Load saved credentials for auto-fill
+    saved_credentials = load_saved_credentials()
+
     socket
     |> assign(:sprite_options, sprite_options)
     |> assign(:loadout_options, loadout_options)
@@ -127,7 +140,24 @@ defmodule InvaderWeb.MissionLive.Form do
     |> assign(:github_connected, github_connected)
     |> assign(:github_installation_id, github_installation_id)
     |> assign(:show_repo_selector, false)
+    # Sprite creation assigns
+    |> assign(:create_new_sprite, create_new_sprite)
+    |> assign(:sprite_name, sprite_name)
+    |> assign(:sprite_lifecycle, sprite_lifecycle)
+    |> assign(:agent_type, agent_type)
+    |> assign(:agent_provider, agent_provider)
+    |> assign(:agent_api_key, agent_api_key)
+    |> assign(:agent_options, AgentConfig.agent_options())
+    |> assign(:provider_options, AgentConfig.providers_for_agent(agent_type))
+    |> assign(:lifecycle_options, AgentConfig.lifecycle_options())
+    |> assign(:saved_credentials, saved_credentials)
+    |> assign(:save_api_key, false)
     |> assign(:form, to_form(form))
+  end
+
+  defp generate_sprite_name do
+    suffix = :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
+    "mission-#{suffix}"
   end
 
   defp load_github_repos do
@@ -145,6 +175,33 @@ defmodule InvaderWeb.MissionLive.Form do
         {[], false, nil}
     end
   end
+
+  defp load_saved_credentials do
+    SavedCredential.list!()
+    |> Enum.map(fn cred -> {cred.provider, cred} end)
+    |> Map.new()
+  end
+
+  defp maybe_save_api_key(%{save_api_key: true, agent_provider: provider, agent_api_key: api_key})
+       when api_key != "" and provider in [:anthropic_api, :zai] do
+    provider_config = AgentConfig.get_provider(provider)
+    name = provider_config[:name] || to_string(provider)
+
+    # Try to create or update existing credential
+    case SavedCredential.get_by_provider(provider) do
+      {:ok, existing} ->
+        SavedCredential.update(existing, %{api_key: api_key})
+
+      {:error, _} ->
+        SavedCredential.create(%{
+          provider: provider,
+          name: name,
+          api_key: api_key
+        })
+    end
+  end
+
+  defp maybe_save_api_key(_assigns), do: :ok
 
   defp save_github_repos(mission, selected_repos) do
     # First, delete existing repos for this mission
@@ -255,6 +312,33 @@ defmodule InvaderWeb.MissionLive.Form do
   def handle_event("save", %{"mission" => mission_params} = params, socket) do
     mission_params = merge_schedule_params(mission_params, socket.assigns)
 
+    # Add agent configuration for all new missions
+    mission_params =
+      if socket.assigns.action == :new do
+        mission_params
+        |> Map.put("agent_type", to_string(socket.assigns.agent_type))
+        |> Map.put("agent_provider", to_string(socket.assigns.agent_provider))
+        |> then(fn p ->
+          if socket.assigns.agent_api_key != "" do
+            Map.put(p, "agent_api_key", socket.assigns.agent_api_key)
+          else
+            p
+          end
+        end)
+      else
+        mission_params
+      end
+
+    # Add sprite creation params if creating new sprite
+    mission_params =
+      if socket.assigns.action == :new && socket.assigns.create_new_sprite do
+        mission_params
+        |> Map.put("sprite_name", socket.assigns.sprite_name)
+        |> Map.put("sprite_lifecycle", to_string(socket.assigns.sprite_lifecycle))
+      else
+        mission_params
+      end
+
     loadout_result =
       if socket.assigns.save_as_loadout do
         loadout_name = Map.get(params, "loadout_name", socket.assigns.loadout_name)
@@ -275,17 +359,31 @@ defmodule InvaderWeb.MissionLive.Form do
         {:ok, :skipped}
       end
 
-    case AshPhoenix.Form.submit(socket.assigns.form.source, params: mission_params) do
+    # Use different action based on sprite creation mode
+    form =
+      if socket.assigns.action == :new && socket.assigns.create_new_sprite do
+        AshPhoenix.Form.for_create(Mission, :create_with_sprite, as: "mission")
+      else
+        socket.assigns.form.source
+      end
+
+    case AshPhoenix.Form.submit(form, params: mission_params) do
       {:ok, mission} ->
         # Save GitHub repos for this mission
         save_github_repos(mission, socket.assigns.selected_repos)
 
+        # Save API key for later if requested
+        maybe_save_api_key(socket.assigns)
+
         flash_message =
-          case loadout_result do
-            {:ok, %Loadout{}} ->
+          cond do
+            socket.assigns.create_new_sprite ->
+              "Mission created - sprite provisioning started"
+
+            loadout_result == {:ok, %Loadout{}} ->
               "Mission #{if socket.assigns.action == :new, do: "created", else: "updated"} and loadout saved"
 
-            _ ->
+            true ->
               "Mission #{if socket.assigns.action == :new, do: "created", else: "updated"}"
           end
 
@@ -379,6 +477,70 @@ defmodule InvaderWeb.MissionLive.Form do
   @impl true
   def handle_event("clear_repos", _params, socket) do
     {:noreply, assign(socket, :selected_repos, [])}
+  end
+
+  # Sprite creation event handlers
+
+  @impl true
+  def handle_event("toggle_create_sprite", _params, socket) do
+    {:noreply, assign(socket, :create_new_sprite, !socket.assigns.create_new_sprite)}
+  end
+
+  @impl true
+  def handle_event("update_sprite_name", %{"sprite_name" => name}, socket) do
+    {:noreply, assign(socket, :sprite_name, name)}
+  end
+
+  @impl true
+  def handle_event("change_agent_type", %{"agent_type" => type}, socket) do
+    agent_type = String.to_existing_atom(type)
+    provider_options = AgentConfig.providers_for_agent(agent_type)
+    # Default to first available provider for this agent
+    default_provider =
+      case provider_options do
+        [{_, p} | _] -> p
+        _ -> :anthropic_subscription
+      end
+
+    {:noreply,
+     socket
+     |> assign(:agent_type, agent_type)
+     |> assign(:provider_options, provider_options)
+     |> assign(:agent_provider, default_provider)
+     |> assign(:agent_api_key, "")}
+  end
+
+  @impl true
+  def handle_event("change_agent_provider", %{"agent_provider" => provider}, socket) do
+    provider_atom = String.to_existing_atom(provider)
+
+    # Check for saved credential for this provider
+    {api_key, has_saved} =
+      case Map.get(socket.assigns.saved_credentials, provider_atom) do
+        %SavedCredential{api_key: key} -> {key, true}
+        _ -> {"", false}
+      end
+
+    {:noreply,
+     socket
+     |> assign(:agent_provider, provider_atom)
+     |> assign(:agent_api_key, api_key)
+     |> assign(:save_api_key, not has_saved)}
+  end
+
+  @impl true
+  def handle_event("change_sprite_lifecycle", %{"sprite_lifecycle" => lifecycle}, socket) do
+    {:noreply, assign(socket, :sprite_lifecycle, String.to_existing_atom(lifecycle))}
+  end
+
+  @impl true
+  def handle_event("update_agent_api_key", %{"agent_api_key" => key}, socket) do
+    {:noreply, assign(socket, :agent_api_key, key)}
+  end
+
+  @impl true
+  def handle_event("toggle_save_api_key", %{"save_api_key" => value}, socket) do
+    {:noreply, assign(socket, :save_api_key, value == "true")}
   end
 
   defp merge_schedule_params(params, assigns) do
@@ -545,6 +707,24 @@ defmodule InvaderWeb.MissionLive.Form do
   defp timezone_label, do: TimezoneHelper.timezone_label()
   defp is_12h_format?, do: Settings.time_format() == :"12h"
 
+  defp provider_requires_api_key?(provider) do
+    case AgentConfig.get_provider(provider) do
+      %{requires_api_key: true} -> true
+      _ -> false
+    end
+  end
+
+  defp provider_key_placeholder(provider) do
+    case AgentConfig.get_provider(provider) do
+      %{key_placeholder: placeholder} -> placeholder
+      _ -> "API key"
+    end
+  end
+
+  defp has_saved_credential?(saved_credentials, provider) do
+    Map.has_key?(saved_credentials, provider)
+  end
+
   defp format_hour_for_display(nil, default), do: format_hour_for_display(default, default)
   defp format_hour_for_display("", default), do: format_hour_for_display(default, default)
 
@@ -595,22 +775,161 @@ defmodule InvaderWeb.MissionLive.Form do
           data-1p-ignore
           data-lpignore="true"
         >
-          <!-- Sprite Selection -->
-          <div :if={@action == :new} class="space-y-2">
-            <label class="text-cyan-500 text-[10px] block">SELECT SPRITE</label>
-            <select
-              name={@form[:sprite_id].name}
-              id={@form[:sprite_id].id}
-              class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
-              required
-            >
-              <option value="">-- SELECT --</option>
-              <%= for {name, id} <- @sprite_options do %>
-                <option value={id} selected={to_string(@form[:sprite_id].value) == to_string(id)}>
-                  {name}
-                </option>
-              <% end %>
-            </select>
+          <!-- Sprite Selection / Creation -->
+          <div :if={@action == :new} class="space-y-4">
+            <!-- Toggle between existing and new sprite -->
+            <div class="flex gap-3">
+              <button
+                type="button"
+                phx-click="toggle_create_sprite"
+                class={"arcade-btn text-[8px] py-2 px-3 #{if not @create_new_sprite, do: "border-cyan-400 text-cyan-400 bg-cyan-900/30", else: "border-cyan-800 text-cyan-600"}"}
+              >
+                USE EXISTING
+              </button>
+              <button
+                type="button"
+                phx-click="toggle_create_sprite"
+                class={"arcade-btn text-[8px] py-2 px-3 #{if @create_new_sprite, do: "border-cyan-400 text-cyan-400 bg-cyan-900/30", else: "border-cyan-800 text-cyan-600"}"}
+              >
+                CREATE NEW
+              </button>
+            </div>
+            
+    <!-- Existing Sprite Selection -->
+            <div :if={not @create_new_sprite} class="space-y-2">
+              <label class="text-cyan-500 text-[10px] block">SELECT SPRITE</label>
+              <select
+                name={@form[:sprite_id].name}
+                id={@form[:sprite_id].id}
+                class={[
+                  "w-full bg-black border-2 text-white p-3 focus:outline-none",
+                  @form[:sprite_id].errors == [] && "border-cyan-700 focus:border-cyan-400",
+                  @form[:sprite_id].errors != [] && "border-red-500 focus:border-red-400"
+                ]}
+              >
+                <option value="">-- SELECT --</option>
+                <%= for {name, id} <- @sprite_options do %>
+                  <option value={id} selected={to_string(@form[:sprite_id].value) == to_string(id)}>
+                    {name}
+                  </option>
+                <% end %>
+              </select>
+              <p :if={@form[:sprite_id].errors != []} class="text-red-500 text-[10px] mt-1">
+                Sprite is required
+              </p>
+            </div>
+            
+    <!-- New Sprite Creation -->
+            <div :if={@create_new_sprite} class="space-y-4 p-3 border border-cyan-900 bg-gray-900/50">
+              <div class="space-y-2">
+                <label class="text-cyan-500 text-[10px] block">SPRITE NAME</label>
+                <input
+                  type="text"
+                  name="sprite_name"
+                  value={@sprite_name}
+                  phx-change="update_sprite_name"
+                  phx-debounce="300"
+                  placeholder="mission-abc123"
+                  class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+                />
+                <p class="text-cyan-700 text-[8px]">
+                  A new sprite will be created with this name on sprites.dev
+                </p>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-cyan-500 text-[10px] block">SPRITE LIFECYCLE</label>
+                <select
+                  name="sprite_lifecycle"
+                  phx-change="change_sprite_lifecycle"
+                  class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+                >
+                  <%= for {name, value} <- @lifecycle_options do %>
+                    <option value={value} selected={@sprite_lifecycle == value}>
+                      {name}
+                    </option>
+                  <% end %>
+                </select>
+              </div>
+            </div>
+            
+    <!-- Coding Agent Configuration (for both new and existing sprites) -->
+            <div class="space-y-4 p-3 border border-cyan-900 bg-gray-900/50">
+              <div class="text-cyan-400 text-[10px] font-bold">CODING AGENT</div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <label class="text-cyan-500 text-[10px] block">AGENT</label>
+                  <div class="text-white p-3 border-2 border-cyan-800 bg-gray-900/50">
+                    Claude Code
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-cyan-500 text-[10px] block">API PROVIDER</label>
+                  <select
+                    name="agent_provider"
+                    phx-change="change_agent_provider"
+                    class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+                  >
+                    <%= for {name, value} <- @provider_options do %>
+                      <option value={value} selected={@agent_provider == value}>
+                        {name}
+                      </option>
+                    <% end %>
+                  </select>
+                </div>
+              </div>
+              
+    <!-- API Key Input (shown when provider requires it) -->
+              <div :if={provider_requires_api_key?(@agent_provider)} class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <label class="text-cyan-500 text-[10px] block">
+                    API KEY <span class="text-red-500">*</span>
+                  </label>
+                  <%= if has_saved_credential?(@saved_credentials, @agent_provider) do %>
+                    <span class="text-green-500 text-[8px]">SAVED</span>
+                  <% end %>
+                </div>
+                <input
+                  type="password"
+                  name="agent_api_key"
+                  value={@agent_api_key}
+                  phx-change="update_agent_api_key"
+                  phx-debounce="300"
+                  placeholder={provider_key_placeholder(@agent_provider)}
+                  required
+                  autocomplete="new-password"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  data-form-type="other"
+                  class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+                />
+                <div class="flex items-center justify-between">
+                  <p class="text-cyan-700 text-[8px]">
+                    Required for this provider. Will be injected into the sprite automatically.
+                  </p>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="save_api_key"
+                      value="true"
+                      checked={@save_api_key}
+                      phx-change="toggle_save_api_key"
+                      class="w-3 h-3 accent-cyan-500"
+                    />
+                    <span class="text-cyan-600 text-[8px]">Save for later</span>
+                  </label>
+                </div>
+              </div>
+
+              <p
+                :if={not provider_requires_api_key?(@agent_provider)}
+                class="text-cyan-600 text-[9px]"
+              >
+                With subscription mode, you'll need to login via the sprite console after creation.
+              </p>
+            </div>
           </div>
 
           <div :if={@action == :edit} class="py-2 border-b border-cyan-800">
