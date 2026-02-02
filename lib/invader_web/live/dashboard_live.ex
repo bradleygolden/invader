@@ -326,6 +326,19 @@ defmodule InvaderWeb.DashboardLive do
   defp prompt_display(%{prompt: prompt}) when is_binary(prompt), do: "[inline]"
   defp prompt_display(_), do: "-"
 
+  # Show active wave number (current_wave + 1) for running missions,
+  # or completed wave count for finished missions
+  defp display_wave(%{status: status, current_wave: current_wave, max_waves: max_waves})
+       when status in [:running, :pausing, :paused] do
+    min(current_wave + 1, max_waves)
+  end
+
+  defp display_wave(%{status: :pending, current_wave: current_wave}) do
+    current_wave + 1
+  end
+
+  defp display_wave(%{current_wave: current_wave}), do: current_wave
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -579,7 +592,7 @@ defmodule InvaderWeb.DashboardLive do
                         <% end %>
                       </div>
                       <div class="text-[10px] text-cyan-400 mt-1">
-                        WAVE {mission.current_wave}/{mission.max_waves}
+                        WAVE {display_wave(mission)}/{mission.max_waves}
                       </div>
                       <div class="text-[8px] text-cyan-700 truncate max-w-xs mt-1">
                         {prompt_display(mission)}
@@ -621,19 +634,34 @@ defmodule InvaderWeb.DashboardLive do
                   <!-- Progress bar -->
                   <.link navigate={~p"/missions/#{mission.id}"} class="block">
                     <div class={[
-                      "mt-3 h-2 bg-black border overflow-hidden cursor-pointer",
+                      "mt-3 h-2 bg-black border overflow-hidden cursor-pointer flex",
                       mission.status == :paused && "border-yellow-700",
                       mission.status in [:running, :pausing] && "border-green-700"
                     ]}>
-                      <div
-                        class={[
-                          "h-full transition-all duration-500",
-                          mission.status == :paused && "bg-yellow-500",
-                          mission.status in [:running, :pausing] && "laser-progress"
-                        ]}
-                        style={"width: #{mission.current_wave / mission.max_waves * 100}%"}
-                      >
-                      </div>
+                      <!-- Completed waves (solid) -->
+                      <%= if mission.current_wave > 0 do %>
+                        <div
+                          class={[
+                            "h-full transition-all duration-500",
+                            mission.status == :paused && "bg-yellow-600",
+                            mission.status in [:running, :pausing] && "bg-green-600"
+                          ]}
+                          style={"width: #{mission.current_wave / mission.max_waves * 100}%"}
+                        >
+                        </div>
+                      <% end %>
+                      <!-- In-progress wave (striped/animated) -->
+                      <%= if mission.status in [:running, :pausing] do %>
+                        <div
+                          class={[
+                            "h-full transition-all duration-500",
+                            mission.status == :pausing && "bg-yellow-400 animate-pulse",
+                            mission.status == :running && "progress-stripe"
+                          ]}
+                          style={"width: #{1 / mission.max_waves * 100}%"}
+                        >
+                        </div>
+                      <% end %>
                     </div>
                   </.link>
                 </div>

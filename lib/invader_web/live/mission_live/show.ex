@@ -322,7 +322,7 @@ defmodule InvaderWeb.MissionLive.Show do
           <div>
             <span class="text-cyan-600">PROGRESS</span>
             <div class="text-cyan-400 flex items-center gap-2">
-              <span>Wave {@mission.current_wave}/</span>
+              <span>Wave {display_wave(@mission)}/</span>
               <%= if @mission.status in [:pending, :running, :pausing, :paused, :provisioning, :setup] do %>
                 <div class="flex items-center gap-1">
                   <button
@@ -583,6 +583,19 @@ defmodule InvaderWeb.MissionLive.Show do
   defp prompt_display(%{prompt_path: path}) when is_binary(path), do: Path.basename(path)
   defp prompt_display(%{prompt: prompt}) when is_binary(prompt), do: "[inline]"
   defp prompt_display(_), do: "-"
+
+  # Show active wave number (current_wave + 1) for running missions,
+  # or completed wave count for finished missions
+  defp display_wave(%{status: status, current_wave: current_wave, max_waves: max_waves})
+       when status in [:running, :pausing, :paused] do
+    min(current_wave + 1, max_waves)
+  end
+
+  defp display_wave(%{status: :pending, current_wave: current_wave}) do
+    current_wave + 1
+  end
+
+  defp display_wave(%{current_wave: current_wave}), do: current_wave
 
   defp status_text_class(:completed), do: "text-green-400"
   defp status_text_class(:failed), do: "text-red-400"
