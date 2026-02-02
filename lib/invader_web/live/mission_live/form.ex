@@ -88,6 +88,9 @@ defmodule InvaderWeb.MissionLive.Form do
         {mission.scope_preset_id, mission.scopes || []}
       end
 
+    # Show waves setting only when editing (if max_waves > 1) or when user adds it
+    show_waves_setting = action == :edit and (mission.max_waves || 1) > 1
+
     socket
     |> assign(:sprite_options, sprite_options)
     |> assign(:loadout_options, loadout_options)
@@ -101,6 +104,7 @@ defmodule InvaderWeb.MissionLive.Form do
     |> assign(:scope_preset_id, scope_preset_id)
     |> assign(:selected_scopes, selected_scopes)
     |> assign(:show_scope_editor, false)
+    |> assign(:show_waves_setting, show_waves_setting)
     |> assign(:form, to_form(form))
   end
 
@@ -154,6 +158,11 @@ defmodule InvaderWeb.MissionLive.Form do
   @impl true
   def handle_event("toggle_schedule", _params, socket) do
     {:noreply, assign(socket, :schedule_enabled, !socket.assigns.schedule_enabled)}
+  end
+
+  @impl true
+  def handle_event("toggle_waves_setting", _params, socket) do
+    {:noreply, assign(socket, :show_waves_setting, !socket.assigns.show_waves_setting)}
   end
 
   @impl true
@@ -590,14 +599,50 @@ defmodule InvaderWeb.MissionLive.Form do
             </div>
 
             <div class="space-y-2">
-              <label class="text-cyan-500 text-[10px] block">MAX WAVES</label>
-              <input
-                type="number"
-                name={@form[:max_waves].name}
-                id={@form[:max_waves].id}
-                value={@form[:max_waves].value}
-                class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
-              />
+              <%= if @show_waves_setting do %>
+                <div class="flex items-center justify-between">
+                  <label class="text-cyan-500 text-[10px]">MAX WAVES</label>
+                  <button
+                    type="button"
+                    phx-click="toggle_waves_setting"
+                    class="text-gray-500 hover:text-cyan-400 text-[10px]"
+                  >
+                    [REMOVE]
+                  </button>
+                </div>
+                <input
+                  type="number"
+                  name={@form[:max_waves].name}
+                  id={@form[:max_waves].id}
+                  value={@form[:max_waves].value}
+                  min="1"
+                  class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+                />
+              <% else %>
+                <input type="hidden" name={@form[:max_waves].name} value="1" />
+                <div class="flex items-center h-full pt-4">
+                  <button
+                    type="button"
+                    phx-click="toggle_waves_setting"
+                    class="text-cyan-400 hover:text-cyan-300 text-[10px] flex items-center gap-2"
+                  >
+                    <span>+ ADD WAVES</span>
+                    <span
+                      class="text-gray-500 cursor-help"
+                      title="Waves are iterations - how many times the mission will loop through its prompt. Default is 1 (single run)."
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </span>
+                  </button>
+                </div>
+              <% end %>
             </div>
           </div>
 

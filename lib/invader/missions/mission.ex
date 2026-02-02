@@ -205,7 +205,7 @@ defmodule Invader.Missions.Mission do
     end
 
     attribute :max_waves, :integer do
-      default 20
+      default 1
       public? true
       description "Maximum number of iterations"
     end
