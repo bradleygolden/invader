@@ -57,7 +57,7 @@ defmodule Invader.Sprites.Actions.SyncFromApi do
     names_to_delete = MapSet.difference(local_names, synced_names)
 
     for sprite <- local_sprites, sprite.name in names_to_delete do
-      Ash.destroy!(sprite)
+      Invader.Sprites.destroy_with_related(sprite)
     end
 
     synced_sprites

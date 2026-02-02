@@ -297,6 +297,29 @@ const liveSocket = new LiveSocket("/live", Socket, {
   hooks: {...colocatedHooks, TimezoneDetector, ScrollToBottom, ArcadeAudio, CopyToClipboard},
 })
 
+// Navigate back in browser history when requested by server
+window.addEventListener("phx:navigate-back", (e) => {
+  const message = e.detail?.message
+  if (message) {
+    showToast(message)
+  }
+  // Navigate immediately - no delay
+  if (window.history.length > 1) {
+    window.history.back()
+  } else {
+    window.location.href = "/"
+  }
+})
+
+function showToast(message) {
+  const toast = document.createElement('div')
+  toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-cyan-900 border-2 border-cyan-400 text-cyan-400 px-4 py-2 text-xs z-50 arcade-glow'
+  toast.textContent = message
+  toast.style.animation = 'fadeInOut 2s ease-in-out forwards'
+  document.body.appendChild(toast)
+  setTimeout(() => toast.remove(), 2000)
+}
+
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))

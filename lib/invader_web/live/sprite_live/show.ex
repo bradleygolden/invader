@@ -41,8 +41,12 @@ defmodule InvaderWeb.SpriteLive.Show do
     sprite = socket.assigns.sprite
 
     info =
-      case Cli.get_info(sprite.name) do
-        {:ok, info} -> info
+      try do
+        case Cli.get_info(sprite.name) do
+          {:ok, info} -> info
+          _ -> %{}
+        end
+      rescue
         _ -> %{}
       end
 
@@ -55,12 +59,17 @@ defmodule InvaderWeb.SpriteLive.Show do
   def handle_info(:load_metrics, socket) do
     sprite = socket.assigns.sprite
 
-    case Cli.get_metrics(sprite.name) do
-      {:ok, metrics} ->
-        {:noreply, assign(socket, loading: false, metrics: metrics, error: nil)}
+    try do
+      case Cli.get_metrics(sprite.name) do
+        {:ok, metrics} ->
+          {:noreply, assign(socket, loading: false, metrics: metrics, error: nil)}
 
-      {:error, reason} ->
-        {:noreply, assign(socket, loading: false, error: inspect(reason))}
+        {:error, reason} ->
+          {:noreply, assign(socket, loading: false, error: inspect(reason))}
+      end
+    rescue
+      e ->
+        {:noreply, assign(socket, loading: false, error: Exception.message(e))}
     end
   end
 
@@ -73,20 +82,26 @@ defmodule InvaderWeb.SpriteLive.Show do
 
   @impl true
   def handle_event("delete_sprite", _params, socket) do
-    sprite = socket.assigns.sprite
+    sprite_id = socket.assigns.sprite.id
+    sprite_name = socket.assigns.sprite.name
 
-    case Cli.destroy(sprite.name) do
-      :ok ->
-        Ash.destroy!(sprite)
+    # Run ALL delete logic in background - navigate immediately
+    Task.start(fn ->
+      # Delete from local database
+      case Sprites.Sprite.get(sprite_id) do
+        {:ok, sprite} -> Sprites.destroy_with_related(sprite)
+        _ -> :ok
+      end
 
-        {:noreply,
-         socket
-         |> put_flash(:info, "Sprite deleted")
-         |> push_navigate(to: ~p"/")}
+      # Delete from API
+      try do
+        Cli.destroy(sprite_name)
+      rescue
+        _ -> :ok
+      end
+    end)
 
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to delete sprite: #{inspect(reason)}")}
-    end
+    {:noreply, push_event(socket, "navigate-back", %{message: "Sprite deleted"})}
   end
 
   @impl true
@@ -132,8 +147,8 @@ defmodule InvaderWeb.SpriteLive.Show do
             </div>
           <% end %>
         </div>
-
-        <!-- System Metrics -->
+        
+    <!-- System Metrics -->
         <%= if @metrics do %>
           <div class="border-t border-cyan-800 pt-4">
             <h3 class="text-cyan-400 font-bold mb-4 flex items-center gap-2">
@@ -170,8 +185,8 @@ defmodule InvaderWeb.SpriteLive.Show do
                   </div>
                 </div>
               </div>
-
-              <!-- Memory -->
+              
+    <!-- Memory -->
               <div class="border border-cyan-800 rounded p-3 bg-black/50 overflow-hidden">
                 <div class="text-cyan-600 text-xs mb-2">MEMORY</div>
                 <div class="text-2xl text-cyan-400 font-bold">
@@ -193,8 +208,8 @@ defmodule InvaderWeb.SpriteLive.Show do
                   Avail: <span class="text-cyan-400">{format_bytes(@metrics.memory.available)}</span>
                 </div>
               </div>
-
-              <!-- Disk -->
+              
+    <!-- Disk -->
               <div class="border border-cyan-800 rounded p-3 bg-black/50 overflow-hidden">
                 <div class="text-cyan-600 text-xs mb-2">DISK</div>
                 <div class="text-2xl text-cyan-400 font-bold">
@@ -241,8 +256,8 @@ defmodule InvaderWeb.SpriteLive.Show do
             </div>
           </div>
         <% end %>
-
-        <!-- Actions -->
+        
+    <!-- Actions -->
         <div class="flex justify-between gap-3 pt-4 border-t border-cyan-800">
           <button
             phx-click="delete_sprite"
@@ -289,7 +304,10 @@ defmodule InvaderWeb.SpriteLive.Show do
   end
 
   defp disk_bar_class(percent) when percent > 90, do: "bg-red-500 h-2 rounded-full transition-all"
-  defp disk_bar_class(percent) when percent > 70, do: "bg-yellow-500 h-2 rounded-full transition-all"
+
+  defp disk_bar_class(percent) when percent > 70,
+    do: "bg-yellow-500 h-2 rounded-full transition-all"
+
   defp disk_bar_class(_), do: "bg-cyan-500 h-2 rounded-full transition-all"
 
   defp format_bytes(bytes) when bytes >= 1_000_000_000_000 do
