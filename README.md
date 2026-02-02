@@ -1,6 +1,6 @@
 # Invader
 
-Ralph Loop Command Center - A web interface for managing autonomous Claude Code agents.
+AI Agent Command Center - A web interface for managing autonomous coding agents.
 
 ## Quick Install
 
