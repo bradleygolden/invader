@@ -279,7 +279,9 @@ defmodule InvaderWeb.ConnectionsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.arcade_page page_title={if @show_form && !@editing_connection, do: "ADD CONNECTION", else: "CONNECTIONS"}>
+    <.arcade_page page_title={
+      if @show_form && !@editing_connection, do: "ADD CONNECTION", else: "CONNECTIONS"
+    }>
       <div class="text-xs">
         <div class="space-y-4">
           <!-- Connections List -->
@@ -299,7 +301,9 @@ defmodule InvaderWeb.ConnectionsLive do
                         </span>
                       </div>
                       <div class="text-cyan-600 text-[8px] mt-1 ml-6">
-                        <span class="text-cyan-500">[{String.upcase(to_string(connection.type))}]</span>
+                        <span class="text-cyan-500">
+                          [{String.upcase(to_string(connection.type))}]
+                        </span>
                         <span class="ml-2">{status_label(connection.status)}</span>
                       </div>
                       <%= if connection.app_id do %>
@@ -337,11 +341,13 @@ defmodule InvaderWeb.ConnectionsLive do
               <% end %>
             <% end %>
           </div>
-
-          <!-- Add/Edit Connection Form -->
+          
+    <!-- Add/Edit Connection Form -->
           <div :if={@show_form} class="pt-4 border-t border-cyan-800">
             <div class="text-cyan-500 text-[10px] mb-3">
-              {if @editing_connection, do: "EDIT CONNECTION", else: "ADD #{String.upcase(to_string(@selected_type))} CONNECTION"}
+              {if @editing_connection,
+                do: "EDIT CONNECTION",
+                else: "ADD #{String.upcase(to_string(@selected_type))} CONNECTION"}
             </div>
 
             <.form
@@ -354,9 +360,18 @@ defmodule InvaderWeb.ConnectionsLive do
               <input type="hidden" name={@form[:type].name} value={@selected_type} />
 
               <%= if @selected_type == :github do %>
-                <.github_form form={@form} editing_connection={@editing_connection} show_private_key_input={@show_private_key_input} app_url={@app_url} />
+                <.github_form
+                  form={@form}
+                  editing_connection={@editing_connection}
+                  show_private_key_input={@show_private_key_input}
+                  app_url={@app_url}
+                />
               <% else %>
-                <.sprites_form form={@form} editing_connection={@editing_connection} show_token_input={@show_token_input} />
+                <.sprites_form
+                  form={@form}
+                  editing_connection={@editing_connection}
+                  show_token_input={@show_token_input}
+                />
               <% end %>
 
               <div class="flex justify-end gap-3 pt-3">
@@ -377,8 +392,8 @@ defmodule InvaderWeb.ConnectionsLive do
               </div>
             </.form>
           </div>
-
-          <!-- Add Connection Buttons -->
+          
+    <!-- Add Connection Buttons -->
           <div :if={!@show_form} class="pt-4 border-t border-cyan-800">
             <div class="text-cyan-500 text-[10px] mb-3">ADD CONNECTION</div>
             <div class="space-y-2">
@@ -423,11 +438,30 @@ defmodule InvaderWeb.ConnectionsLive do
         <span>GITHUB APP SETUP</span>
       </div>
       <div class="text-cyan-600 text-[8px] space-y-1">
-        <p>1. <a href="https://github.com/settings/apps/new" target="_blank" rel="noopener noreferrer" class="text-cyan-400 underline hover:text-cyan-300">Create a new GitHub App</a></p>
+        <p>
+          1.
+          <a
+            href="https://github.com/settings/apps/new"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-cyan-400 underline hover:text-cyan-300"
+          >
+            Create a new GitHub App
+          </a>
+        </p>
         <p>2. Set Homepage URL to:</p>
         <div class="flex items-center gap-2 ml-3 my-1">
           <code class="bg-black/50 px-2 py-1 text-cyan-300 font-mono">{@app_url}</code>
-          <button type="button" phx-hook="CopyToClipboard" id="copy-homepage-url" data-clipboard-text={@app_url} class="text-cyan-400 hover:text-cyan-300 text-[8px]" title="Copy to clipboard">[COPY]</button>
+          <button
+            type="button"
+            phx-hook="CopyToClipboard"
+            id="copy-homepage-url"
+            data-clipboard-text={@app_url}
+            class="text-cyan-400 hover:text-cyan-300 text-[8px]"
+            title="Copy to clipboard"
+          >
+            [COPY]
+          </button>
         </div>
         <p>3. Under "Repository permissions", set:</p>
         <p class="ml-3">- Contents: Read & Write</p>
@@ -438,18 +472,32 @@ defmodule InvaderWeb.ConnectionsLive do
         <p>5. Create app, then generate private key (.pem file)</p>
         <p>6. Click "Install App" in sidebar, install on your account</p>
         <p class="ml-3 text-cyan-500">Installation ID is the number in URL after install:</p>
-        <p class="ml-3 text-cyan-500">github.com/settings/installations/<span class="text-yellow-400">XXXXX</span></p>
+        <p class="ml-3 text-cyan-500">
+          github.com/settings/installations/<span class="text-yellow-400">XXXXX</span>
+        </p>
       </div>
     </div>
 
     <div class="space-y-2">
       <label class="text-cyan-500 text-[10px] block">APP ID</label>
-      <input type="text" name={@form[:app_id].name} value={@form[:app_id].value} placeholder="123456" class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none" />
+      <input
+        type="text"
+        name={@form[:app_id].name}
+        value={@form[:app_id].value}
+        placeholder="123456"
+        class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+      />
     </div>
 
     <div class="space-y-2">
       <label class="text-cyan-500 text-[10px] block">INSTALLATION ID</label>
-      <input type="text" name={@form[:installation_id].name} value={@form[:installation_id].value} placeholder="12345678" class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none" />
+      <input
+        type="text"
+        name={@form[:installation_id].name}
+        value={@form[:installation_id].value}
+        placeholder="12345678"
+        class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
+      />
       <div class="text-cyan-700 text-[8px]">Find in URL: github.com/settings/installations/XXXXX</div>
     </div>
 
@@ -461,17 +509,36 @@ defmodule InvaderWeb.ConnectionsLive do
             <.key_icon />
             <div class="flex-1">
               <div class="text-white text-[10px] font-medium">Private key</div>
-              <div class="text-cyan-500 text-[8px] font-mono">{key_fingerprint(@editing_connection.private_key)}</div>
+              <div class="text-cyan-500 text-[8px] font-mono">
+                {key_fingerprint(@editing_connection.private_key)}
+              </div>
             </div>
-            <button type="button" phx-click="show_private_key_input" class="arcade-btn border-cyan-600 text-cyan-400 text-[8px] py-1 px-2">REPLACE</button>
+            <button
+              type="button"
+              phx-click="show_private_key_input"
+              class="arcade-btn border-cyan-600 text-cyan-400 text-[8px] py-1 px-2"
+            >
+              REPLACE
+            </button>
           </div>
         </div>
       <% else %>
-        <textarea name={@form[:private_key].name} placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----" rows="6" class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none resize-none font-mono text-[10px]"></textarea>
+        <textarea
+          name={@form[:private_key].name}
+          placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
+          rows="6"
+          class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none resize-none font-mono text-[10px]"
+        ></textarea>
         <%= if @editing_connection && @editing_connection.private_key do %>
           <div class="flex items-center gap-2">
             <span class="text-cyan-700 text-[8px]">Leave blank to keep current key</span>
-            <button type="button" phx-click="hide_private_key_input" class="text-cyan-500 hover:text-cyan-400 text-[8px]">[CANCEL]</button>
+            <button
+              type="button"
+              phx-click="hide_private_key_input"
+              class="text-cyan-500 hover:text-cyan-400 text-[8px]"
+            >
+              [CANCEL]
+            </button>
           </div>
         <% end %>
       <% end %>
@@ -487,7 +554,17 @@ defmodule InvaderWeb.ConnectionsLive do
         <span>SPRITES SETUP</span>
       </div>
       <div class="text-cyan-600 text-[8px] space-y-1">
-        <p>1. <a href="https://sprites.dev/account" target="_blank" rel="noopener noreferrer" class="text-cyan-400 underline hover:text-cyan-300">Go to your Sprites account</a></p>
+        <p>
+          1.
+          <a
+            href="https://sprites.dev/account"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-cyan-400 underline hover:text-cyan-300"
+          >
+            Go to your Sprites account
+          </a>
+        </p>
         <p>2. Select your organization and generate a token</p>
         <p>3. Copy and paste the token below</p>
       </div>
@@ -501,17 +578,36 @@ defmodule InvaderWeb.ConnectionsLive do
             <.key_icon />
             <div class="flex-1">
               <div class="text-white text-[10px] font-medium">API Token</div>
-              <div class="text-cyan-500 text-[8px] font-mono">{token_preview(@editing_connection.token)}</div>
+              <div class="text-cyan-500 text-[8px] font-mono">
+                {token_preview(@editing_connection.token)}
+              </div>
             </div>
-            <button type="button" phx-click="show_token_input" class="arcade-btn border-cyan-600 text-cyan-400 text-[8px] py-1 px-2">REPLACE</button>
+            <button
+              type="button"
+              phx-click="show_token_input"
+              class="arcade-btn border-cyan-600 text-cyan-400 text-[8px] py-1 px-2"
+            >
+              REPLACE
+            </button>
           </div>
         </div>
       <% else %>
-        <input type="password" name={@form[:token].name} placeholder="spr_..." class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none font-mono" />
+        <input
+          type="password"
+          name={@form[:token].name}
+          placeholder="spr_..."
+          class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none font-mono"
+        />
         <%= if @editing_connection && @editing_connection.token do %>
           <div class="flex items-center gap-2">
             <span class="text-cyan-700 text-[8px]">Leave blank to keep current token</span>
-            <button type="button" phx-click="hide_token_input" class="text-cyan-500 hover:text-cyan-400 text-[8px]">[CANCEL]</button>
+            <button
+              type="button"
+              phx-click="hide_token_input"
+              class="text-cyan-500 hover:text-cyan-400 text-[8px]"
+            >
+              [CANCEL]
+            </button>
           </div>
         <% end %>
       <% end %>
@@ -521,7 +617,11 @@ defmodule InvaderWeb.ConnectionsLive do
 
   defp type_icon(%{type: :github} = assigns) do
     ~H"""
-    <svg viewBox="0 0 16 16" class="w-5 h-5 fill-current text-cyan-400" style="image-rendering: pixelated;">
+    <svg
+      viewBox="0 0 16 16"
+      class="w-5 h-5 fill-current text-cyan-400"
+      style="image-rendering: pixelated;"
+    >
       <rect x="4" y="1" width="8" height="1" />
       <rect x="3" y="2" width="10" height="1" />
       <rect x="2" y="3" width="12" height="1" />
@@ -551,7 +651,11 @@ defmodule InvaderWeb.ConnectionsLive do
 
   defp type_icon(%{type: :sprites} = assigns) do
     ~H"""
-    <svg viewBox="0 0 11 8" class="w-5 h-5 fill-current text-green-400" style="image-rendering: pixelated;">
+    <svg
+      viewBox="0 0 11 8"
+      class="w-5 h-5 fill-current text-green-400"
+      style="image-rendering: pixelated;"
+    >
       <rect x="2" y="0" width="1" height="1" />
       <rect x="8" y="0" width="1" height="1" />
       <rect x="3" y="1" width="1" height="1" />
@@ -576,7 +680,11 @@ defmodule InvaderWeb.ConnectionsLive do
 
   defp type_icon(assigns) do
     ~H"""
-    <svg viewBox="0 0 16 16" class="w-5 h-5 fill-current text-cyan-400" style="image-rendering: pixelated;">
+    <svg
+      viewBox="0 0 16 16"
+      class="w-5 h-5 fill-current text-cyan-400"
+      style="image-rendering: pixelated;"
+    >
       <rect x="2" y="6" width="4" height="4" />
       <rect x="6" y="7" width="4" height="2" />
       <rect x="10" y="6" width="4" height="4" />
@@ -600,7 +708,11 @@ defmodule InvaderWeb.ConnectionsLive do
 
   defp key_icon(assigns) do
     ~H"""
-    <svg viewBox="0 0 16 16" class="w-6 h-6 fill-current text-green-400" style="image-rendering: pixelated;">
+    <svg
+      viewBox="0 0 16 16"
+      class="w-6 h-6 fill-current text-green-400"
+      style="image-rendering: pixelated;"
+    >
       <rect x="0" y="6" width="8" height="4" />
       <rect x="8" y="5" width="2" height="6" />
       <rect x="10" y="4" width="2" height="8" />

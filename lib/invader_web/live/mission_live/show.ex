@@ -109,7 +109,9 @@ defmodule InvaderWeb.MissionLive.Show do
       {:ok, save} ->
         Ash.destroy!(save)
         checkpoints = Saves.Save.for_mission!(socket.assigns.mission.id)
-        {:noreply, socket |> assign(:checkpoints, checkpoints) |> put_flash(:info, "Checkpoint deleted")}
+
+        {:noreply,
+         socket |> assign(:checkpoints, checkpoints) |> put_flash(:info, "Checkpoint deleted")}
 
       _ ->
         {:noreply, socket}
@@ -269,8 +271,8 @@ defmodule InvaderWeb.MissionLive.Show do
             <div class="text-red-400 text-sm mt-1">{@mission.error_message}</div>
           </div>
         <% end %>
-
-        <!-- Checkpoints -->
+        
+    <!-- Checkpoints -->
         <%= if not Enum.empty?(@checkpoints) do %>
           <div>
             <h3 class="text-cyan-400 font-bold mb-3 flex items-center gap-2">
@@ -309,8 +311,8 @@ defmodule InvaderWeb.MissionLive.Show do
             </div>
           </div>
         <% end %>
-
-        <!-- Wave History -->
+        
+    <!-- Wave History -->
         <div>
           <h3 class="text-cyan-400 font-bold mb-3 flex items-center gap-2">
             <span>---</span> WAVE HISTORY
@@ -337,7 +339,11 @@ defmodule InvaderWeb.MissionLive.Show do
                     <div class="flex items-center gap-3 text-xs text-cyan-700">
                       <span>{format_wave_duration(wave)}</span>
                       <.icon
-                        name={if wave.id in @expanded_waves, do: "hero-chevron-up", else: "hero-chevron-down"}
+                        name={
+                          if wave.id in @expanded_waves,
+                            do: "hero-chevron-up",
+                            else: "hero-chevron-down"
+                        }
                         class="size-4"
                       />
                     </div>
@@ -377,8 +383,8 @@ defmodule InvaderWeb.MissionLive.Show do
             </div>
           <% end %>
         </div>
-
-        <!-- Actions -->
+        
+    <!-- Actions -->
         <div class="flex justify-between gap-3 pt-4 border-t border-cyan-800">
           <div>
             <%= if @mission.status == :pending do %>

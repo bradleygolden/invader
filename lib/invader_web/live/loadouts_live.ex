@@ -131,7 +131,9 @@ defmodule InvaderWeb.LoadoutsLive do
                         <%= if loadout.content do %>
                           <span class="text-cyan-500">[INLINE]</span>
                           <span class="ml-2 truncate max-w-xs inline-block align-bottom">
-                            {String.slice(loadout.content, 0, 50)}{if String.length(loadout.content || "") > 50, do: "..."}
+                            {String.slice(loadout.content, 0, 50)}{if String.length(
+                                                                        loadout.content || ""
+                                                                      ) > 50, do: "..."}
                           </span>
                         <% else %>
                           <span class="text-cyan-500">[FILE]</span>
@@ -164,8 +166,8 @@ defmodule InvaderWeb.LoadoutsLive do
               <% end %>
             <% end %>
           </div>
-
-          <!-- New/Edit Loadout Form -->
+          
+    <!-- New/Edit Loadout Form -->
           <div class="pt-4 border-t border-cyan-800">
             <div class="text-cyan-500 text-[10px] mb-3">
               {if @editing_loadout, do: "EDIT LOADOUT", else: "NEW LOADOUT"}

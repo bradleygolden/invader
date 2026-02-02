@@ -18,8 +18,8 @@ defmodule InvaderWeb.PageLayout do
     >
       <!-- CRT Scanlines Overlay -->
       <div class="crt-overlay pointer-events-none fixed inset-0 z-40" aria-hidden="true"></div>
-
-      <!-- Header -->
+      
+    <!-- Header -->
       <header class="text-center mb-4 sm:mb-6 relative">
         <div :if={@show_back_button} class="absolute left-0 top-0">
           <.link
@@ -47,13 +47,13 @@ defmodule InvaderWeb.PageLayout do
           {@page_title}
         </h1>
       </header>
-
-      <!-- Content -->
+      
+    <!-- Content -->
       <div class="arcade-panel p-3 sm:p-4">
         {render_slot(@inner_block)}
       </div>
-
-      <!-- Bottom Decoration -->
+      
+    <!-- Bottom Decoration -->
       <div class="mt-4 sm:mt-6 flex justify-center">
         <div class="flex items-center gap-2 sm:gap-4 text-[8px] sm:text-[10px] text-cyan-600">
           <span>---</span>

@@ -58,7 +58,10 @@ defmodule InvaderWeb.SpriteLive.Form do
       {:ok, _sprite} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Sprite #{if socket.assigns.action == :new, do: "created", else: "updated"}")
+         |> put_flash(
+           :info,
+           "Sprite #{if socket.assigns.action == :new, do: "created", else: "updated"}"
+         )
          |> push_navigate(to: ~p"/")}
 
       {:error, form} ->

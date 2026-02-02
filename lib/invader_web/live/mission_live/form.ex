@@ -124,8 +124,10 @@ defmodule InvaderWeb.MissionLive.Form do
             cond do
               loadout.content && loadout.content != "" ->
                 {:inline, %{"prompt" => loadout.content, "prompt_path" => ""}}
+
               loadout.file_path && loadout.file_path != "" ->
                 {:path, %{"prompt_path" => loadout.file_path, "prompt" => ""}}
+
               true ->
                 {socket.assigns.prompt_mode, %{}}
             end
@@ -222,6 +224,7 @@ defmodule InvaderWeb.MissionLive.Form do
           case loadout_result do
             {:ok, %Loadout{}} ->
               "Mission #{if socket.assigns.action == :new, do: "created", else: "updated"} and loadout saved"
+
             _ ->
               "Mission #{if socket.assigns.action == :new, do: "created", else: "updated"}"
           end
@@ -301,9 +304,12 @@ defmodule InvaderWeb.MissionLive.Form do
   defp convert_12h_to_24h(params) do
     if Settings.time_format() == :"12h" do
       case {Map.get(params, "schedule_hour"), Map.get(params, "schedule_ampm")} do
-        {nil, _} -> params
+        {nil, _} ->
+          params
+
         {hour_str, ampm} when ampm in ["AM", "PM"] ->
           hour_12 = parse_int(hour_str)
+
           hour_24 =
             cond do
               ampm == "AM" && hour_12 == 12 -> 0
@@ -311,8 +317,11 @@ defmodule InvaderWeb.MissionLive.Form do
               ampm == "PM" -> hour_12 + 12
               true -> hour_12
             end
+
           Map.put(params, "schedule_hour", to_string(hour_24))
-        _ -> params
+
+        _ ->
+          params
       end
     else
       params
@@ -321,17 +330,25 @@ defmodule InvaderWeb.MissionLive.Form do
 
   defp maybe_convert_datetime_local(params, :once) do
     case Map.get(params, "next_run_at") do
-      nil -> params
-      "" -> params
+      nil ->
+        params
+
+      "" ->
+        params
+
       datetime_local ->
         case TimezoneHelper.parse_datetime_input(datetime_local) do
-          %DateTime{} = utc_datetime -> Map.put(params, "next_run_at", DateTime.to_iso8601(utc_datetime))
-          _ -> params
+          %DateTime{} = utc_datetime ->
+            Map.put(params, "next_run_at", DateTime.to_iso8601(utc_datetime))
+
+          _ ->
+            params
         end
     end
   end
 
-  defp maybe_convert_datetime_local(params, schedule_type) when schedule_type in [:daily, :weekly] do
+  defp maybe_convert_datetime_local(params, schedule_type)
+       when schedule_type in [:daily, :weekly] do
     case Settings.timezone_mode() do
       :local -> convert_hour_to_utc(params)
       :utc -> params
@@ -345,9 +362,12 @@ defmodule InvaderWeb.MissionLive.Form do
     minute = parse_int(Map.get(params, "schedule_minute", "0"))
 
     case Settings.user_timezone() do
-      nil -> params
+      nil ->
+        params
+
       timezone ->
         today = Date.utc_today()
+
         case NaiveDateTime.new(today.year, today.month, today.day, hour, minute, 0) do
           {:ok, naive} ->
             case DateTime.from_naive(naive, timezone) do
@@ -357,39 +377,53 @@ defmodule InvaderWeb.MissionLive.Form do
                     params
                     |> Map.put("schedule_hour", to_string(utc_dt.hour))
                     |> Map.put("schedule_minute", to_string(utc_dt.minute))
-                  _ -> params
+
+                  _ ->
+                    params
                 end
+
               {:ambiguous, first, _} ->
                 case DateTime.shift_zone(first, "Etc/UTC") do
                   {:ok, utc_dt} ->
                     params
                     |> Map.put("schedule_hour", to_string(utc_dt.hour))
                     |> Map.put("schedule_minute", to_string(utc_dt.minute))
-                  _ -> params
+
+                  _ ->
+                    params
                 end
+
               {:gap, just_before, _} ->
                 case DateTime.shift_zone(just_before, "Etc/UTC") do
                   {:ok, utc_dt} ->
                     params
                     |> Map.put("schedule_hour", to_string(utc_dt.hour))
                     |> Map.put("schedule_minute", to_string(utc_dt.minute))
-                  _ -> params
+
+                  _ ->
+                    params
                 end
-              {:error, _} -> params
+
+              {:error, _} ->
+                params
             end
-          _ -> params
+
+          _ ->
+            params
         end
     end
   end
 
   defp parse_int(nil), do: 0
   defp parse_int(""), do: 0
+
   defp parse_int(str) when is_binary(str) do
     case Integer.parse(str) do
       {n, _} -> n
       :error -> 0
     end
   end
+
   defp parse_int(n) when is_integer(n), do: n
 
   defp category_has_scopes?(category, selected_scopes) do
@@ -398,6 +432,7 @@ defmodule InvaderWeb.MissionLive.Form do
 
   defp get_effective_scopes_for_preview(nil, selected_scopes, _presets), do: selected_scopes
   defp get_effective_scopes_for_preview("", selected_scopes, _presets), do: selected_scopes
+
   defp get_effective_scopes_for_preview(preset_id, _selected_scopes, presets) do
     case Enum.find(presets, &(to_string(&1.id) == to_string(preset_id))) do
       nil -> []
@@ -416,8 +451,10 @@ defmodule InvaderWeb.MissionLive.Form do
 
   defp format_hour_for_display(nil, default), do: format_hour_for_display(default, default)
   defp format_hour_for_display("", default), do: format_hour_for_display(default, default)
+
   defp format_hour_for_display(value, _default) do
     hour = parse_int(value)
+
     if is_12h_format?() do
       hour_12 = rem(hour, 12)
       hour_12 = if hour_12 == 0, do: 12, else: hour_12
@@ -429,6 +466,7 @@ defmodule InvaderWeb.MissionLive.Form do
 
   defp get_ampm(nil, default), do: get_ampm(default, default)
   defp get_ampm("", default), do: get_ampm(default, default)
+
   defp get_ampm(value, _default) do
     hour = parse_int(value)
     if hour >= 12, do: "PM", else: "AM"
@@ -436,7 +474,10 @@ defmodule InvaderWeb.MissionLive.Form do
 
   defp pad_number(nil, default), do: String.pad_leading(to_string(default), 2, "0")
   defp pad_number("", default), do: String.pad_leading(to_string(default), 2, "0")
-  defp pad_number(value, _default) when is_integer(value), do: String.pad_leading(to_string(value), 2, "0")
+
+  defp pad_number(value, _default) when is_integer(value),
+    do: String.pad_leading(to_string(value), 2, "0")
+
   defp pad_number(value, _default) when is_binary(value), do: String.pad_leading(value, 2, "0")
 
   defp format_datetime_for_input(nil), do: ""
@@ -480,8 +521,8 @@ defmodule InvaderWeb.MissionLive.Form do
             <span class="text-cyan-500 text-[10px]">SPRITE</span>
             <div class="text-white mt-1">{@mission.sprite.name}</div>
           </div>
-
-          <!-- Loadout Quick Load -->
+          
+    <!-- Loadout Quick Load -->
           <div :if={length(@loadout_options) > 0} class="space-y-2">
             <label class="text-cyan-500 text-[10px] block">QUICK LOAD</label>
             <div class="flex gap-2">
@@ -501,7 +542,11 @@ defmodule InvaderWeb.MissionLive.Form do
                 class="arcade-btn p-2 border-cyan-800 text-cyan-600 hover:border-cyan-400 hover:text-cyan-400"
                 title="Manage loadouts"
               >
-                <svg viewBox="0 0 16 16" class="w-4 h-4 fill-current" style="image-rendering: pixelated;">
+                <svg
+                  viewBox="0 0 16 16"
+                  class="w-4 h-4 fill-current"
+                  style="image-rendering: pixelated;"
+                >
                   <rect x="6" y="0" width="4" height="2" />
                   <rect x="6" y="14" width="4" height="2" />
                   <rect x="0" y="6" width="2" height="4" />
@@ -516,8 +561,8 @@ defmodule InvaderWeb.MissionLive.Form do
               </.link>
             </div>
           </div>
-
-          <!-- Prompt Type Toggle -->
+          
+    <!-- Prompt Type Toggle -->
           <div class="space-y-3">
             <div class="flex gap-3">
               <button
@@ -560,8 +605,8 @@ defmodule InvaderWeb.MissionLive.Form do
                 class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none resize-none"
               >{@form[:prompt].value}</textarea>
             </div>
-
-            <!-- Save as Loadout -->
+            
+    <!-- Save as Loadout -->
             <div class="pt-2 border-t border-cyan-900">
               <label class="flex items-center gap-2 cursor-pointer">
                 <input
@@ -584,8 +629,8 @@ defmodule InvaderWeb.MissionLive.Form do
               </div>
             </div>
           </div>
-
-          <!-- Settings Grid -->
+          
+    <!-- Settings Grid -->
           <div class="grid grid-cols-2 gap-6">
             <div class="space-y-2">
               <label class="text-cyan-500 text-[10px] block">PRIORITY</label>
@@ -645,8 +690,8 @@ defmodule InvaderWeb.MissionLive.Form do
               <% end %>
             </div>
           </div>
-
-          <!-- Duration -->
+          
+    <!-- Duration -->
           <div class="space-y-2">
             <label class="text-cyan-500 text-[10px] block">MAX DURATION (SEC)</label>
             <input
@@ -658,8 +703,8 @@ defmodule InvaderWeb.MissionLive.Form do
               class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
             />
           </div>
-
-          <!-- Scheduling Section -->
+          
+    <!-- Scheduling Section -->
           <div class="space-y-4 pt-4 border-t border-cyan-800">
             <div class="flex items-center gap-3">
               <label class="text-cyan-500 text-[10px]">SCHEDULE</label>
@@ -694,8 +739,8 @@ defmodule InvaderWeb.MissionLive.Form do
                   <option value="custom" selected={@schedule_type == :custom}>Custom (Cron)</option>
                 </select>
               </div>
-
-              <!-- Once: DateTime Picker -->
+              
+    <!-- Once: DateTime Picker -->
               <div :if={@schedule_type == :once} class="space-y-2">
                 <label class="text-cyan-500 text-[10px] block">RUN AT ({timezone_label()})</label>
                 <input
@@ -706,8 +751,8 @@ defmodule InvaderWeb.MissionLive.Form do
                   class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
                 />
               </div>
-
-              <!-- Hourly: Minute picker -->
+              
+    <!-- Hourly: Minute picker -->
               <div :if={@schedule_type == :hourly} class="space-y-2">
                 <label class="text-cyan-500 text-[10px] block">RUN AT MINUTE</label>
                 <div class="flex items-center gap-2">
@@ -724,10 +769,12 @@ defmodule InvaderWeb.MissionLive.Form do
                   />
                 </div>
               </div>
-
-              <!-- Daily: Time picker -->
+              
+    <!-- Daily: Time picker -->
               <div :if={@schedule_type == :daily} class="space-y-2">
-                <label class="text-cyan-500 text-[10px] block">RUN AT TIME ({timezone_label()})</label>
+                <label class="text-cyan-500 text-[10px] block">
+                  RUN AT TIME ({timezone_label()})
+                </label>
                 <div class="flex items-center gap-2">
                   <input
                     type="text"
@@ -757,13 +804,17 @@ defmodule InvaderWeb.MissionLive.Form do
                     name="mission[schedule_ampm]"
                     class="bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
                   >
-                    <option value="AM" selected={get_ampm(@form[:schedule_hour].value, 9) == "AM"}>AM</option>
-                    <option value="PM" selected={get_ampm(@form[:schedule_hour].value, 9) == "PM"}>PM</option>
+                    <option value="AM" selected={get_ampm(@form[:schedule_hour].value, 9) == "AM"}>
+                      AM
+                    </option>
+                    <option value="PM" selected={get_ampm(@form[:schedule_hour].value, 9) == "PM"}>
+                      PM
+                    </option>
                   </select>
                 </div>
               </div>
-
-              <!-- Weekly: Days + Time -->
+              
+    <!-- Weekly: Days + Time -->
               <div :if={@schedule_type == :weekly} class="space-y-4">
                 <div class="space-y-2">
                   <label class="text-cyan-500 text-[10px] block">DAYS</label>
@@ -813,14 +864,18 @@ defmodule InvaderWeb.MissionLive.Form do
                       name="mission[schedule_ampm]"
                       class="bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
                     >
-                      <option value="AM" selected={get_ampm(@form[:schedule_hour].value, 9) == "AM"}>AM</option>
-                      <option value="PM" selected={get_ampm(@form[:schedule_hour].value, 9) == "PM"}>PM</option>
+                      <option value="AM" selected={get_ampm(@form[:schedule_hour].value, 9) == "AM"}>
+                        AM
+                      </option>
+                      <option value="PM" selected={get_ampm(@form[:schedule_hour].value, 9) == "PM"}>
+                        PM
+                      </option>
                     </select>
                   </div>
                 </div>
               </div>
-
-              <!-- Custom: Cron expression -->
+              
+    <!-- Custom: Cron expression -->
               <div :if={@schedule_type == :custom} class="space-y-2">
                 <label class="text-cyan-500 text-[10px] block">CRON EXPRESSION</label>
                 <input
@@ -837,15 +892,15 @@ defmodule InvaderWeb.MissionLive.Form do
               </div>
             </div>
           </div>
-
-          <!-- Scopes Section -->
+          
+    <!-- Scopes Section -->
           <div class="space-y-4 pt-4 border-t border-cyan-800">
             <div class="flex items-center justify-between">
               <label class="text-cyan-500 text-[10px]">CLI SCOPES</label>
               <InvaderWeb.ScopeComponents.scope_badge count={length(@selected_scopes)} />
             </div>
-
-            <!-- Preset Selector -->
+            
+    <!-- Preset Selector -->
             <div class="space-y-2">
               <label class="text-cyan-500 text-[10px] block">PRESET</label>
               <select
@@ -860,13 +915,15 @@ defmodule InvaderWeb.MissionLive.Form do
                     selected={to_string(@scope_preset_id) == to_string(preset.id)}
                   >
                     {preset.name}
-                    <%= if preset.is_system do %>(System)<% end %>
+                    <%= if preset.is_system do %>
+                      (System)
+                    <% end %>
                   </option>
                 <% end %>
               </select>
             </div>
-
-            <!-- Custom Scopes Toggle -->
+            
+    <!-- Custom Scopes Toggle -->
             <div :if={is_nil(@scope_preset_id) or @scope_preset_id == ""} class="space-y-3">
               <div class="flex items-center gap-3">
                 <button
@@ -881,7 +938,10 @@ defmodule InvaderWeb.MissionLive.Form do
                 </span>
               </div>
 
-              <div :if={@show_scope_editor} class="space-y-3 p-3 border border-cyan-900 bg-gray-900/50">
+              <div
+                :if={@show_scope_editor}
+                class="space-y-3 p-3 border border-cyan-900 bg-gray-900/50"
+              >
                 <!-- Category toggles -->
                 <div class="flex flex-wrap gap-2">
                   <%= for category <- ["pr", "issue", "repo"] do %>
@@ -895,8 +955,8 @@ defmodule InvaderWeb.MissionLive.Form do
                     </button>
                   <% end %>
                 </div>
-
-                <!-- Selected scopes display -->
+                
+    <!-- Selected scopes display -->
                 <div :if={@selected_scopes != []} class="flex flex-wrap gap-1">
                   <%= for scope <- @selected_scopes do %>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[8px] bg-cyan-900/50 border border-cyan-700 text-cyan-400">
@@ -912,8 +972,8 @@ defmodule InvaderWeb.MissionLive.Form do
                     </span>
                   <% end %>
                 </div>
-
-                <!-- Full access shortcut -->
+                
+    <!-- Full access shortcut -->
                 <div class="flex gap-2">
                   <button
                     type="button"
@@ -932,16 +992,16 @@ defmodule InvaderWeb.MissionLive.Form do
                 </div>
               </div>
             </div>
-
-            <!-- Preview -->
+            
+    <!-- Preview -->
             <div :if={@selected_scopes != [] or @scope_preset_id} class="space-y-2">
               <InvaderWeb.ScopeComponents.scope_preview scopes={
                 get_effective_scopes_for_preview(@scope_preset_id, @selected_scopes, @scope_presets)
               } />
             </div>
           </div>
-
-          <!-- Actions -->
+          
+    <!-- Actions -->
           <div class="flex justify-end gap-4 pt-6 mt-6 border-t border-cyan-800">
             <button
               type="submit"
