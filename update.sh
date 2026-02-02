@@ -65,8 +65,8 @@ SPRITES_OUTPUT=$(sprite list -o "$ORG" 2>&1) || {
   exit 1
 }
 
-# Parse sprite names - they appear as "name:" at the start of lines
-SPRITE_LIST=($(echo "$SPRITES_OUTPUT" | grep -E '^[a-zA-Z0-9]' | grep ':' | sed 's/:.*//'))
+# Parse sprite names - one per line
+SPRITE_LIST=($(echo "$SPRITES_OUTPUT" | grep -E '^[a-zA-Z0-9]'))
 
 if [ ${#SPRITE_LIST[@]} -eq 0 ]; then
   echo -e "${RED}Error: No sprites found in $ORG${NC}"
