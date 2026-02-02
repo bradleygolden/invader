@@ -260,17 +260,33 @@ defmodule Invader.Workers.LoopRunner do
 
   defp maybe_start_next_pending do
     if Invader.Settings.auto_start_queue?() do
-      # Find highest priority pending mission
+      all_missions = Mission.list!()
+
+      # Find sprite_ids currently in use by active missions
+      active_statuses = [:running, :pausing, :paused, :provisioning, :setup]
+
+      sprites_in_use =
+        all_missions
+        |> Enum.filter(&(&1.status in active_statuses and not is_nil(&1.sprite_id)))
+        |> Enum.map(& &1.sprite_id)
+        |> MapSet.new()
+
+      # Find highest priority pending mission whose sprite is not in use
       pending =
-        Mission.list!()
+        all_missions
         |> Enum.filter(&(&1.status == :pending))
         |> Enum.sort_by(& &1.priority, :desc)
-        |> List.first()
+        |> Enum.find(fn mission ->
+          # Allow missions with no sprite, or whose sprite is not in use
+          is_nil(mission.sprite_id) or not MapSet.member?(sprites_in_use, mission.sprite_id)
+        end)
 
       if pending do
         Logger.info("Auto-starting next pending mission: #{pending.id}")
         Mission.start(pending)
         enqueue(pending.id)
+      else
+        Logger.debug("No pending missions available (all sprites in use or queue empty)")
       end
     end
   end
