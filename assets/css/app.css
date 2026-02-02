@@ -553,3 +553,528 @@ button {
   background: rgba(0, 255, 255, 0.1);
   color: var(--si-cyan);
 }
+
+/* ============================================
+   WORKFLOW EDITOR STYLES
+   ============================================ */
+
+/* Canvas container */
+.workflow-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  cursor: default;
+}
+
+.workflow-canvas-bg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: all;
+}
+
+.workflow-transform-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* Nodes container */
+.workflow-nodes-container {
+  position: relative;
+}
+
+/* Node base styles */
+.workflow-node {
+  position: absolute;
+  min-width: 140px;
+  background: rgba(0, 0, 20, 0.95);
+  border: 2px solid var(--si-cyan);
+  box-shadow:
+    0 0 10px rgba(0, 255, 255, 0.2),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 0.1s ease;
+}
+
+.workflow-node:hover {
+  box-shadow:
+    0 0 15px rgba(0, 255, 255, 0.3),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.workflow-node:active {
+  cursor: grabbing;
+}
+
+/* Node type-specific colors */
+.workflow-node[data-node-type="mission"] {
+  border-color: var(--si-green);
+}
+
+.workflow-node[data-node-type="mission"]:hover {
+  box-shadow:
+    0 0 15px rgba(0, 255, 0, 0.3),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.workflow-node[data-node-type="conditional"] {
+  border-color: var(--si-yellow);
+}
+
+.workflow-node[data-node-type="conditional"]:hover {
+  box-shadow:
+    0 0 15px rgba(255, 255, 0, 0.3),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.workflow-node[data-node-type="delay"] {
+  border-color: var(--si-magenta);
+}
+
+.workflow-node[data-node-type="delay"]:hover {
+  box-shadow:
+    0 0 15px rgba(255, 0, 255, 0.3),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.workflow-node[data-node-type="loop"] {
+  border-color: var(--si-orange);
+}
+
+.workflow-node[data-node-type="loop"]:hover {
+  box-shadow:
+    0 0 15px rgba(255, 136, 0, 0.3),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Selected state - must come after node-type rules to override border colors */
+.workflow-node.selected,
+.workflow-node.selected:hover {
+  border-color: var(--si-white);
+  box-shadow:
+    0 0 20px rgba(255, 255, 255, 0.4),
+    0 0 40px rgba(0, 255, 255, 0.3),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Node header */
+.workflow-node-header {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workflow-node-icon {
+  font-size: 12px;
+}
+
+.workflow-node-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: var(--si-white);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Node body */
+.workflow-node-body {
+  padding: 8px 10px;
+  font-size: 7px;
+  color: var(--si-cyan);
+}
+
+/* Start node indicator */
+.workflow-node.is-start {
+  border-top: 3px solid var(--si-green);
+}
+
+.workflow-node.is-start::before {
+  content: 'START';
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 6px;
+  color: var(--si-green);
+  text-shadow: 0 0 5px var(--si-green);
+}
+
+.workflow-node.is-start.selected {
+  border-top-color: var(--si-white);
+}
+
+/* Connection ports */
+.workflow-port {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #000;
+  border: 2px solid var(--si-cyan);
+  border-radius: 50%;
+  cursor: crosshair;
+  transition: all 0.1s ease;
+}
+
+.workflow-port:hover {
+  background: var(--si-cyan);
+  box-shadow: 0 0 10px var(--si-cyan);
+  transform: scale(1.2);
+}
+
+.workflow-port[data-port-type="input"] {
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.workflow-port[data-port-type="input"]:hover {
+  transform: translateX(-50%) scale(1.2);
+}
+
+.workflow-port[data-port-type="output"] {
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.workflow-port[data-port-type="output"]:hover {
+  transform: translateX(-50%) scale(1.2);
+}
+
+/* Conditional node has multiple outputs */
+.workflow-node[data-node-type="conditional"] .workflow-port[data-port-type="output"][data-port-index="0"] {
+  left: 30%;
+  border-color: var(--si-green);
+}
+
+.workflow-node[data-node-type="conditional"] .workflow-port[data-port-type="output"][data-port-index="1"] {
+  left: 70%;
+  border-color: var(--si-red);
+}
+
+/* Edges SVG */
+.workflow-edges-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.workflow-edge {
+  fill: none;
+  stroke: var(--si-cyan);
+  stroke-width: 2;
+  pointer-events: stroke;
+  cursor: pointer;
+  filter: drop-shadow(0 0 3px var(--si-cyan));
+  transition: stroke 0.1s ease;
+}
+
+.workflow-edge:hover {
+  stroke: var(--si-white);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px var(--si-white));
+}
+
+.workflow-edge.selected {
+  stroke: var(--si-white);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 8px var(--si-white));
+}
+
+.workflow-edge.loop-back {
+  stroke: var(--si-orange);
+  stroke-dasharray: 8, 4;
+  filter: drop-shadow(0 0 3px var(--si-orange));
+}
+
+.workflow-edge.loop-back:hover {
+  stroke: var(--si-yellow);
+}
+
+.temp-edge {
+  fill: none;
+  stroke: var(--si-cyan);
+  stroke-width: 2;
+  stroke-dasharray: 5, 5;
+  opacity: 0.7;
+  filter: drop-shadow(0 0 5px var(--si-cyan));
+}
+
+/* Toolbar */
+.workflow-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 20, 0.9);
+  border: 2px solid var(--si-cyan);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.workflow-toolbar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  color: var(--si-cyan);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  cursor: grab;
+  transition: all 0.1s ease;
+}
+
+.workflow-toolbar-item:hover {
+  background: rgba(0, 255, 255, 0.1);
+  border-color: var(--si-cyan);
+}
+
+.workflow-toolbar-item.mission {
+  border-color: rgba(0, 255, 0, 0.3);
+  color: var(--si-green);
+}
+
+.workflow-toolbar-item.mission:hover {
+  border-color: var(--si-green);
+  background: rgba(0, 255, 0, 0.1);
+}
+
+.workflow-toolbar-item.conditional {
+  border-color: rgba(255, 255, 0, 0.3);
+  color: var(--si-yellow);
+}
+
+.workflow-toolbar-item.conditional:hover {
+  border-color: var(--si-yellow);
+  background: rgba(255, 255, 0, 0.1);
+}
+
+.workflow-toolbar-item.delay {
+  border-color: rgba(255, 0, 255, 0.3);
+  color: var(--si-magenta);
+}
+
+.workflow-toolbar-item.delay:hover {
+  border-color: var(--si-magenta);
+  background: rgba(255, 0, 255, 0.1);
+}
+
+.workflow-toolbar-item.loop {
+  border-color: rgba(255, 136, 0, 0.3);
+  color: var(--si-orange);
+}
+
+.workflow-toolbar-item.loop:hover {
+  border-color: var(--si-orange);
+  background: rgba(255, 136, 0, 0.1);
+}
+
+/* Properties panel */
+.workflow-properties {
+  background: rgba(0, 0, 20, 0.95);
+  border: 2px solid var(--si-cyan);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+  padding: 12px;
+}
+
+.workflow-properties-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--si-cyan);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+}
+
+.workflow-properties-field {
+  margin-bottom: 12px;
+}
+
+.workflow-properties-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: var(--si-cyan);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.workflow-properties-input {
+  width: 100%;
+  padding: 6px 8px;
+  background: #000;
+  border: 1px solid var(--si-cyan);
+  color: var(--si-white);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+}
+
+.workflow-properties-input:focus {
+  outline: none;
+  box-shadow: 0 0 5px var(--si-cyan);
+}
+
+/* Minimap */
+.workflow-minimap {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 150px;
+  height: 100px;
+  background: rgba(0, 0, 20, 0.8);
+  border: 1px solid var(--si-cyan);
+  pointer-events: none;
+}
+
+.workflow-minimap-viewport {
+  position: absolute;
+  border: 1px solid var(--si-white);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Zoom controls */
+.workflow-zoom-controls {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 20, 0.9);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  padding: 4px;
+}
+
+.zoom-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  color: var(--si-cyan);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.zoom-btn:hover {
+  background: rgba(0, 255, 255, 0.1);
+  border-color: var(--si-cyan);
+}
+
+.zoom-btn:active {
+  background: rgba(0, 255, 255, 0.2);
+}
+
+.zoom-select {
+  width: 70px;
+  height: 24px;
+  padding: 0 4px;
+  background: #000 !important;
+  border: 1px solid rgba(0, 255, 255, 0.3) !important;
+  color: var(--si-cyan) !important;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 8px !important;
+  cursor: pointer;
+  text-align: center;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.zoom-select:hover {
+  border-color: var(--si-cyan) !important;
+}
+
+.zoom-select:focus {
+  outline: none;
+  box-shadow: 0 0 5px var(--si-cyan);
+}
+
+.zoom-select option {
+  background: #000;
+  color: var(--si-cyan);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+}
+
+/* Execution status overlay on nodes */
+.workflow-node.running {
+  animation: node-pulse 1s ease-in-out infinite;
+}
+
+@keyframes node-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 10px rgba(0, 255, 0, 0.3),
+      inset 0 0 20px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(0, 255, 0, 0.5),
+      0 0 30px rgba(0, 255, 0, 0.3),
+      inset 0 0 20px rgba(0, 0, 0, 0.5);
+  }
+}
+
+.workflow-node.completed {
+  border-color: var(--si-cyan);
+}
+
+.workflow-node.completed::after {
+  content: '✓';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  background: var(--si-cyan);
+  color: #000;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.workflow-node.failed {
+  border-color: var(--si-red);
+}
+
+.workflow-node.failed::after {
+  content: '✗';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  background: var(--si-red);
+  color: #000;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}

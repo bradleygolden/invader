@@ -94,7 +94,8 @@ defmodule Invader.MixProject do
       {:ash_authentication_phoenix, "~> 2.0"},
       {:ash_admin, "~> 0.12"},
       {:picosat_elixir, "~> 0.2"},
-      {:mimic, "~> 1.7", only: :test}
+      {:mimic, "~> 1.7", only: :test},
+      {:libgraph, "~> 0.16"}
     ]
   end
 

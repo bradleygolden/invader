@@ -11,7 +11,7 @@ config :ash_oban, pro?: false
 
 config :invader, Oban,
   engine: Oban.Engines.Lite,
-  queues: [default: 10, missions: 5],
+  queues: [default: 10, missions: 5, workflows: 5],
   repo: Invader.Repo,
   plugins: [
     {Oban.Plugins.Cron,
@@ -67,7 +67,8 @@ config :invader,
     Invader.Loadouts,
     Invader.Connections,
     Invader.Accounts,
-    Invader.Scopes
+    Invader.Scopes,
+    Invader.Campaigns
   ]
 
 # Configure the endpoint

@@ -15,6 +15,8 @@ defmodule Invader.Application do
       Invader.Settings,
       # Registry for tracking running mission processes
       {Registry, keys: :unique, name: Invader.MissionRegistry},
+      # Campaign orchestrator for managing campaign execution
+      Invader.Campaigns.CampaignOrchestrator,
       {DNSCluster, query: Application.get_env(:invader, :dns_cluster_query) || :ignore},
       {Oban,
        AshOban.config(

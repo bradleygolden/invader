@@ -7,6 +7,7 @@ defmodule InvaderWeb.DashboardLive do
   alias Invader.Missions
   alias Invader.Sprites
   alias Invader.Saves
+  alias Invader.Campaigns
   alias InvaderWeb.TimezoneHelper
 
   require Ash.Query
@@ -525,6 +526,13 @@ defmodule InvaderWeb.DashboardLive do
         _ -> false
       end
 
+    # Load active campaigns
+    campaigns =
+      Campaigns.Campaign.list!()
+      |> Ash.load!([:nodes, :runs])
+      |> Enum.filter(&(&1.status in [:draft, :active]))
+      |> Enum.take(5)
+
     socket
     |> assign(:running_missions, running)
     |> assign(:pending_missions, pending)
@@ -535,6 +543,7 @@ defmodule InvaderWeb.DashboardLive do
     |> assign(:sprites, sprites)
     |> assign(:stats, calculate_stats(all_missions))
     |> assign(:has_sprites_connection, has_sprites_connection)
+    |> assign(:campaigns, campaigns)
   end
 
   defp calculate_stats(missions) do
@@ -1301,6 +1310,53 @@ defmodule InvaderWeb.DashboardLive do
         <% end %>
       </section>
       
+    <!-- Campaigns Section -->
+      <section class="arcade-panel p-3 sm:p-4 mt-3 sm:mt-4">
+        <div class="flex justify-between items-center mb-3 sm:mb-4">
+          <h2 class="text-xs sm:text-sm text-fuchsia-400 icon-text">
+            <span class="text-xs sm:text-sm">⬡</span>
+            <span>CAMPAIGNS</span>
+          </h2>
+          <div class="flex gap-1 sm:gap-2">
+            <.link
+              navigate={~p"/workflows"}
+              class="arcade-btn border-cyan-500 text-cyan-400 text-[8px] py-1.5 px-2 sm:py-1 sm:px-2"
+            >
+              VIEW ALL
+            </.link>
+            <.link
+              navigate={~p"/workflows/new"}
+              class="arcade-btn border-green-500 text-green-400 text-[8px] py-1.5 px-2 sm:py-1 sm:px-2"
+            >
+              + NEW
+            </.link>
+          </div>
+        </div>
+
+        <%= if Enum.empty?(@campaigns) do %>
+          <p class="text-cyan-600 text-center py-4 text-[10px]">- NO CAMPAIGNS -</p>
+        <% else %>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <%= for campaign <- @campaigns do %>
+              <.link
+                navigate={~p"/workflows/#{campaign.id}"}
+                class={"border p-2 hover:bg-fuchsia-900/10 cursor-pointer block #{campaign_status_border(campaign.status)}"}
+              >
+                <div class="flex items-center justify-between">
+                  <span class="text-white text-[10px] truncate">{campaign.name}</span>
+                  <span class={"text-[8px] #{campaign_status_text(campaign.status)}"}>
+                    {campaign_status_label(campaign.status)}
+                  </span>
+                </div>
+                <div class="text-[8px] text-cyan-700 mt-1">
+                  {length(campaign.nodes)} NODES
+                </div>
+              </.link>
+            <% end %>
+          </div>
+        <% end %>
+      </section>
+      
     <!-- Bottom Decoration -->
       <div class="mt-4 sm:mt-6 flex justify-center">
         <div class="flex items-center gap-2 sm:gap-4 text-[8px] sm:text-[10px] text-cyan-600">
@@ -1381,6 +1437,21 @@ defmodule InvaderWeb.DashboardLive do
   defp sprite_status_label(:busy), do: "BUSY"
   defp sprite_status_label(:offline), do: "COLD"
   defp sprite_status_label(_), do: "UNKNOWN"
+
+  defp campaign_status_border(:draft), do: "border-yellow-500"
+  defp campaign_status_border(:active), do: "border-green-500"
+  defp campaign_status_border(:archived), do: "border-cyan-700"
+  defp campaign_status_border(_), do: "border-fuchsia-500"
+
+  defp campaign_status_text(:draft), do: "text-yellow-400"
+  defp campaign_status_text(:active), do: "text-green-400"
+  defp campaign_status_text(:archived), do: "text-cyan-600"
+  defp campaign_status_text(_), do: "text-fuchsia-400"
+
+  defp campaign_status_label(:draft), do: "DRAFT"
+  defp campaign_status_label(:active), do: "ACTIVE"
+  defp campaign_status_label(:archived), do: "ARCHIVED"
+  defp campaign_status_label(status), do: status |> to_string() |> String.upcase()
 
   defp format_duration(%{waves: waves, status: status, finished_at: mission_finished_at})
        when is_list(waves) do

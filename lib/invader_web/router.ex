@@ -75,6 +75,11 @@ defmodule InvaderWeb.Router do
 
       # Scope presets management
       live "/scopes", ScopePresetsLive, :index
+
+      # Workflow routes
+      live "/workflows", CampaignLive, :index
+      live "/workflows/new", CampaignLive, :new
+      live "/workflows/:id", CampaignEditorLive, :edit
     end
   end
 
