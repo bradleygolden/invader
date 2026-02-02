@@ -67,7 +67,6 @@ defmodule InvaderWeb.DashboardLive do
     {:noreply, load_data(socket)}
   end
 
-
   @impl true
   def handle_info({:settings_changed, :auto_start_queue, value}, socket) do
     {:noreply, assign(socket, :auto_start_queue, value)}
@@ -87,7 +86,6 @@ defmodule InvaderWeb.DashboardLive do
   def handle_info({:settings_changed, :time_format, value}, socket) do
     {:noreply, assign(socket, :time_format, value)}
   end
-
 
   @impl true
   def handle_info({:sprites_synced, _sprites}, socket) do
@@ -339,8 +337,8 @@ defmodule InvaderWeb.DashboardLive do
     >
       <!-- CRT Scanlines Overlay -->
       <div class="crt-overlay pointer-events-none fixed inset-0 z-40" aria-hidden="true"></div>
-
-      <!-- Animated Aliens Header Decoration -->
+      
+    <!-- Animated Aliens Header Decoration -->
       <div class="hidden sm:flex justify-center gap-4 mb-2 text-2xl">
         <span class="alien-sprite text-cyan-400"></span>
         <span class="alien-sprite text-magenta-400" style="animation-delay: 0.2s;"></span>
@@ -964,13 +962,15 @@ defmodule InvaderWeb.DashboardLive do
   defp status_label(:aborted), do: "RETREAT"
   defp status_label(status), do: status |> to_string() |> String.upcase()
 
-  defp sprite_status_class(:available), do: "border-yellow-500"
-  defp sprite_status_class(:busy), do: "border-green-500"
+  defp sprite_status_class(:available), do: "border-green-500"
+  defp sprite_status_class(:standby), do: "border-yellow-500"
+  defp sprite_status_class(:busy), do: "border-cyan-500"
   defp sprite_status_class(:offline), do: "border-red-500"
   defp sprite_status_class(_), do: "border-cyan-800"
 
-  defp sprite_indicator_class(:available), do: "text-yellow-400 status-pending"
-  defp sprite_indicator_class(:busy), do: "text-green-400 blink status-running"
+  defp sprite_indicator_class(:available), do: "text-green-400 blink status-running"
+  defp sprite_indicator_class(:standby), do: "text-yellow-400 status-pending"
+  defp sprite_indicator_class(:busy), do: "text-cyan-400 blink"
   defp sprite_indicator_class(:offline), do: "text-red-400 status-failed"
   defp sprite_indicator_class(_), do: "text-cyan-600"
 
@@ -1000,12 +1000,14 @@ defmodule InvaderWeb.DashboardLive do
     """
   end
 
-  defp sprite_status_text_class(:available), do: "text-yellow-400"
-  defp sprite_status_text_class(:busy), do: "text-green-400"
+  defp sprite_status_text_class(:available), do: "text-green-400"
+  defp sprite_status_text_class(:standby), do: "text-yellow-400"
+  defp sprite_status_text_class(:busy), do: "text-cyan-400"
   defp sprite_status_text_class(:offline), do: "text-red-400"
   defp sprite_status_text_class(_), do: "text-cyan-600"
 
-  defp sprite_status_label(:available), do: "WARM"
+  defp sprite_status_label(:available), do: "AVAILABLE"
+  defp sprite_status_label(:standby), do: "STANDBY"
   defp sprite_status_label(:busy), do: "BUSY"
   defp sprite_status_label(:offline), do: "COLD"
   defp sprite_status_label(_), do: "UNKNOWN"

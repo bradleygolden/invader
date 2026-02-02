@@ -64,7 +64,7 @@ defmodule Invader.Sprites.Actions.SyncFromApi do
   end
 
   defp parse_status("running"), do: :available
-  defp parse_status("warm"), do: :available
+  defp parse_status("warm"), do: :standby
   defp parse_status("stopped"), do: :offline
   defp parse_status("cold"), do: :offline
   defp parse_status("busy"), do: :busy

@@ -68,7 +68,7 @@ defmodule Invader.Sprites.Sprite do
     attribute :status, :atom do
       default :unknown
       public? true
-      constraints one_of: [:available, :busy, :offline, :unknown]
+      constraints one_of: [:available, :standby, :busy, :offline, :unknown]
     end
 
     timestamps()
