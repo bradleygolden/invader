@@ -259,6 +259,25 @@ button {
   box-shadow: 0 0 10px var(--si-green);
 }
 
+/* Progress bar - striped animation for in-progress wave */
+.progress-stripe {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--si-green),
+    var(--si-green) 4px,
+    var(--si-cyan) 4px,
+    var(--si-cyan) 8px
+  );
+  background-size: 16px 16px;
+  animation: progress-stripe-move 0.5s linear infinite;
+  box-shadow: 0 0 8px var(--si-green);
+}
+
+@keyframes progress-stripe-move {
+  0% { background-position: 0 0; }
+  100% { background-position: 16px 0; }
+}
+
 /* Card/panel arcade styling */
 .arcade-panel {
   background: rgba(0, 0, 20, 0.8);
