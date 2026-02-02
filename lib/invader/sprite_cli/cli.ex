@@ -255,6 +255,13 @@ defmodule Invader.SpriteCli.Cli do
   end
 
   @doc """
+  Destroys a sprite on the sprites.dev service.
+  """
+  def destroy(sprite_name) do
+    Sprites.destroy(sprite(sprite_name))
+  end
+
+  @doc """
   Checks if a sprite is available and responding.
   """
   def health_check(sprite_name) do

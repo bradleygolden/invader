@@ -358,12 +358,19 @@ defmodule InvaderWeb.DashboardLive do
   def handle_event("delete_sprite", %{"id" => id}, socket) do
     case Sprites.Sprite.get(id) do
       {:ok, sprite} ->
-        Ash.destroy!(sprite)
+        # Delete from sprites.dev first, then from local database
+        case Invader.SpriteCli.Cli.destroy(sprite.name) do
+          :ok ->
+            Ash.destroy!(sprite)
 
-        {:noreply,
-         socket
-         |> put_flash(:info, "Sprite deleted")
-         |> load_data()}
+            {:noreply,
+             socket
+             |> put_flash(:info, "Sprite deleted")
+             |> load_data()}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to delete sprite: #{inspect(reason)}")}
+        end
 
       _ ->
         {:noreply, socket}
