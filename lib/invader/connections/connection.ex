@@ -16,8 +16,8 @@ defmodule Invader.Connections.Connection do
 
   cloak do
     vault(Invader.Vault)
-    attributes([:private_key, :token])
-    decrypt_by_default([:private_key, :token])
+    attributes([:private_key, :token, :telegram_bot_token, :telegram_webhook_secret])
+    decrypt_by_default([:private_key, :token, :telegram_bot_token, :telegram_webhook_secret])
   end
 
   code_interface do
@@ -33,12 +33,36 @@ defmodule Invader.Connections.Connection do
     defaults [:read, :destroy]
 
     create :create do
-      accept [:type, :name, :app_id, :installation_id, :private_key, :token]
+      accept [
+        :type,
+        :name,
+        :app_id,
+        :installation_id,
+        :private_key,
+        :token,
+        :telegram_bot_token,
+        :telegram_chat_id,
+        :telegram_username,
+        :telegram_webhook_secret
+      ]
+
       change set_attribute(:status, :pending)
     end
 
     update :update do
-      accept [:name, :app_id, :installation_id, :private_key, :token, :status]
+      accept [
+        :name,
+        :app_id,
+        :installation_id,
+        :private_key,
+        :token,
+        :status,
+        :telegram_bot_token,
+        :telegram_chat_id,
+        :telegram_username,
+        :telegram_webhook_secret
+      ]
+
       require_atomic? false
     end
 
@@ -55,8 +79,8 @@ defmodule Invader.Connections.Connection do
     attribute :type, :atom do
       allow_nil? false
       public? true
-      constraints one_of: [:github, :sprites]
-      description "Type of connection (github, linear, etc.)"
+      constraints one_of: [:github, :sprites, :telegram]
+      description "Type of connection (github, sprites, telegram, etc.)"
     end
 
     attribute :name, :string do
@@ -96,6 +120,31 @@ defmodule Invader.Connections.Connection do
       allow_nil? true
       sensitive? true
       description "API token (for Sprites and other token-based services)"
+    end
+
+    # Telegram Bot credentials
+    attribute :telegram_bot_token, :string do
+      allow_nil? true
+      sensitive? true
+      description "Telegram Bot API token from @BotFather"
+    end
+
+    attribute :telegram_chat_id, :integer do
+      allow_nil? true
+      public? true
+      description "Telegram chat ID for sending notifications"
+    end
+
+    attribute :telegram_username, :string do
+      allow_nil? true
+      public? true
+      description "Telegram username of the connected user"
+    end
+
+    attribute :telegram_webhook_secret, :string do
+      allow_nil? true
+      sensitive? true
+      description "Secret token for verifying webhook requests"
     end
 
     timestamps()

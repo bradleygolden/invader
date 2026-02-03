@@ -8,5 +8,6 @@ defmodule Invader.Connections do
   resources do
     resource Invader.Connections.Connection
     resource Invader.Connections.Request
+    resource Invader.Connections.Telegram.PendingPrompt
   end
 end
