@@ -33,6 +33,11 @@ defmodule Invader.Missions.Mission do
       transition :abort, from: [:running, :paused, :pausing, :pending, :setup], to: :aborted
       # Allow scheduled missions to restart from terminal states
       transition :run_scheduled, from: [:completed, :failed, :aborted, :pending], to: :running
+      # Allow retrying failed missions
+      transition :retry, from: :failed, to: :provisioning
+      # Allow rerunning finished missions
+      transition :rerun, from: [:completed, :failed, :aborted], to: :pending
+      transition :rerun_provision, from: [:completed, :failed, :aborted], to: :provisioning
     end
   end
 
@@ -69,6 +74,8 @@ defmodule Invader.Missions.Mission do
     define :setup_complete, action: :setup_complete
     define :update_waves, action: :update_waves
     define :update_prompt, action: :update_prompt
+    define :retry, action: :retry
+    define :rerun, action: :rerun
   end
 
   actions do
@@ -331,6 +338,68 @@ defmodule Invader.Missions.Mission do
 
       change transition_state(:pending)
       change set_attribute(:status, :pending)
+    end
+
+    update :retry do
+      require_atomic? false
+
+      # Only allow retry on missions that auto-created their sprite
+      validate fn changeset, _context ->
+        sprite_auto_created = changeset.data.sprite_auto_created
+
+        if sprite_auto_created do
+          :ok
+        else
+          {:error, message: "can only retry missions that auto-create their sprite"}
+        end
+      end
+
+      # Reset mission state for retry
+      change set_attribute(:error_message, nil)
+      change set_attribute(:finished_at, nil)
+      change set_attribute(:started_at, nil)
+      change set_attribute(:current_wave, 0)
+
+      # Transition back to provisioning
+      change transition_state(:provisioning)
+      change set_attribute(:status, :provisioning)
+
+      # Delete old waves and re-enqueue sprite provisioner
+      change Invader.Missions.Changes.DeleteWaves
+      change Invader.Missions.Changes.EnqueueSpriteProvisioner
+    end
+
+    update :rerun do
+      require_atomic? false
+
+      # Validate the mission can be rerun
+      validate fn changeset, _context ->
+        sprite_id = changeset.data.sprite_id
+        sprite_auto_created = changeset.data.sprite_auto_created
+
+        cond do
+          not is_nil(sprite_id) ->
+            # Has a sprite, can rerun
+            :ok
+
+          sprite_auto_created ->
+            # Will re-provision the sprite
+            :ok
+
+          true ->
+            {:error, message: "mission has no sprite and doesn't auto-create one"}
+        end
+      end
+
+      # Reset mission state for rerun
+      change set_attribute(:error_message, nil)
+      change set_attribute(:finished_at, nil)
+      change set_attribute(:started_at, nil)
+      change set_attribute(:current_wave, 0)
+
+      # Delete old waves and handle conditional transition
+      change Invader.Missions.Changes.DeleteWaves
+      change Invader.Missions.Changes.RerunMission
     end
   end
 

@@ -206,6 +206,46 @@ defmodule InvaderWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("retry_mission", %{"id" => id}, socket) do
+    case Missions.Mission.get(id) do
+      {:ok, mission} ->
+        case Missions.Mission.retry(mission) do
+          {:ok, _mission} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Mission queued for retry")
+             |> load_data()}
+
+          {:error, error} ->
+            {:noreply, put_flash(socket, :error, "Failed to retry: #{inspect(error)}")}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("rerun_mission", %{"id" => id}, socket) do
+    case Missions.Mission.get(id) do
+      {:ok, mission} ->
+        case Missions.Mission.rerun(mission) do
+          {:ok, _mission} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Mission queued for rerun")
+             |> load_data()}
+
+          {:error, error} ->
+            {:noreply, put_flash(socket, :error, "Failed to rerun: #{inspect(error)}")}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_event("sync_sprites", _params, socket) do
     try do
       case Sprites.Sprite.sync() do
@@ -586,7 +626,7 @@ defmodule InvaderWeb.DashboardLive do
                         <% else %>
                           <span class="text-green-400 mr-2">▸</span>
                         <% end %>
-                        {mission.sprite.name}
+                        {mission.sprite_name}
                         <%= if mission.status == :paused do %>
                           <span class="text-yellow-500 text-[8px] ml-2">PAUSED</span>
                         <% end %>
@@ -712,7 +752,7 @@ defmodule InvaderWeb.DashboardLive do
                       <div class="min-w-0">
                         <div class="text-white text-xs flex items-center gap-2 truncate">
                           <span class="truncate">
-                            {(mission.sprite && mission.sprite.name) || mission.sprite_name}
+                            {mission.sprite_name}
                           </span>
                           <%= if mission.status == :provisioning do %>
                             <span class="text-[8px] text-orange-400 flex-shrink-0 animate-pulse">
@@ -793,13 +833,13 @@ defmodule InvaderWeb.DashboardLive do
           <% else %>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <%= for mission <- @completed_missions do %>
-                <.link
-                  navigate={~p"/missions/#{mission.id}"}
-                  class={"border p-2 flex justify-between items-center hover:bg-white/5 cursor-pointer block #{status_border_class(mission.status)}"}
-                >
-                  <div class="min-w-0 flex-1">
+                <div class={"border p-2 flex justify-between items-center hover:bg-white/5 #{status_border_class(mission.status)}"}>
+                  <.link
+                    navigate={~p"/missions/#{mission.id}"}
+                    class="min-w-0 flex-1 cursor-pointer"
+                  >
                     <div class={"text-[10px] sm:text-xs #{status_text_class(mission.status)} flex items-center gap-2 truncate"}>
-                      <span class="truncate">{mission.sprite.name}</span>
+                      <span class="truncate">{mission.sprite_name}</span>
                       <%= if mission.schedule_enabled do %>
                         <span
                           class="text-[8px] text-fuchsia-400 flex-shrink-0"
@@ -817,12 +857,22 @@ defmodule InvaderWeb.DashboardLive do
                         </span>
                       <% end %>
                     </div>
+                  </.link>
+                  <div class="text-right flex-shrink-0 ml-2 flex items-center gap-2">
+                    <.link navigate={~p"/missions/#{mission.id}"} class="cursor-pointer">
+                      <div class="text-[10px] text-white">{format_duration(mission)}</div>
+                      <div class="text-[8px] text-cyan-700">{format_time_ago(mission.finished_at)}</div>
+                    </.link>
+                    <button
+                      phx-click="rerun_mission"
+                      phx-value-id={mission.id}
+                      class="text-[8px] border border-cyan-600 text-cyan-400 px-2 py-1 hover:bg-cyan-600/20 hover:border-cyan-400"
+                      title="Rerun this mission"
+                    >
+                      RERUN
+                    </button>
                   </div>
-                  <div class="text-right flex-shrink-0 ml-2">
-                    <div class="text-[10px] text-white">{format_duration(mission)}</div>
-                    <div class="text-[8px] text-cyan-700">{format_time_ago(mission.finished_at)}</div>
-                  </div>
-                </.link>
+                </div>
               <% end %>
             </div>
             
