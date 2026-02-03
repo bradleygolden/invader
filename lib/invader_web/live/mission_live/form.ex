@@ -416,10 +416,11 @@ defmodule InvaderWeb.MissionLive.Form do
   def handle_event("toggle_scope_category", %{"category" => category}, socket) do
     all_category_scopes = get_category_scopes(category)
     current_scopes = socket.assigns.selected_scopes
+    prefix = scope_prefix_for_category(category)
 
     new_scopes =
       if category_has_scopes?(category, current_scopes) do
-        Enum.reject(current_scopes, &String.starts_with?(&1, "github:#{category}:"))
+        Enum.reject(current_scopes, &String.starts_with?(&1, prefix))
       else
         (current_scopes ++ all_category_scopes) |> Enum.uniq()
       end
@@ -692,8 +693,12 @@ defmodule InvaderWeb.MissionLive.Form do
   defp parse_int(n) when is_integer(n), do: n
 
   defp category_has_scopes?(category, selected_scopes) do
-    Enum.any?(selected_scopes, &String.starts_with?(&1, "github:#{category}:"))
+    prefix = scope_prefix_for_category(category)
+    Enum.any?(selected_scopes, &String.starts_with?(&1, prefix))
   end
+
+  defp scope_prefix_for_category("telegram"), do: "telegram:"
+  defp scope_prefix_for_category(category), do: "github:#{category}:"
 
   defp get_effective_scopes_for_preview(nil, selected_scopes, _presets), do: selected_scopes
   defp get_effective_scopes_for_preview("", selected_scopes, _presets), do: selected_scopes
@@ -703,6 +708,11 @@ defmodule InvaderWeb.MissionLive.Form do
       nil -> []
       preset -> preset.scopes
     end
+  end
+
+  defp get_category_scopes("telegram") do
+    Invader.Scopes.Parsers.Telegram.all_scopes()
+    |> Map.keys()
   end
 
   defp get_category_scopes(category) do
@@ -1364,18 +1374,36 @@ defmodule InvaderWeb.MissionLive.Form do
                 :if={@show_scope_editor}
                 class="space-y-3 p-3 border border-cyan-900 bg-gray-900/50"
               >
-                <!-- Category toggles -->
-                <div class="flex flex-wrap gap-2">
-                  <%= for category <- ["pr", "issue", "repo"] do %>
+                <!-- GitHub category toggles -->
+                <div class="space-y-1">
+                  <div class="text-cyan-600 text-[8px]">GITHUB</div>
+                  <div class="flex flex-wrap gap-2">
+                    <%= for category <- ["pr", "issue", "repo"] do %>
+                      <button
+                        type="button"
+                        phx-click="toggle_scope_category"
+                        phx-value-category={category}
+                        class={"arcade-btn text-[8px] py-1 px-2 #{if category_has_scopes?(category, @selected_scopes), do: "border-cyan-400 text-cyan-400 bg-cyan-900/30", else: "border-cyan-800 text-cyan-600"}"}
+                      >
+                        {String.upcase(category)}
+                      </button>
+                    <% end %>
+                  </div>
+                </div>
+
+    <!-- Telegram category toggle -->
+                <div class="space-y-1">
+                  <div class="text-cyan-600 text-[8px]">TELEGRAM</div>
+                  <div class="flex flex-wrap gap-2">
                     <button
                       type="button"
                       phx-click="toggle_scope_category"
-                      phx-value-category={category}
-                      class={"arcade-btn text-[8px] py-1 px-2 #{if category_has_scopes?(category, @selected_scopes), do: "border-cyan-400 text-cyan-400 bg-cyan-900/30", else: "border-cyan-800 text-cyan-600"}"}
+                      phx-value-category="telegram"
+                      class={"arcade-btn text-[8px] py-1 px-2 #{if category_has_scopes?("telegram", @selected_scopes), do: "border-blue-400 text-blue-400 bg-blue-900/30", else: "border-cyan-800 text-cyan-600"}"}
                     >
-                      {String.upcase(category)}
+                      HUMAN-IN-THE-LOOP
                     </button>
-                  <% end %>
+                  </div>
                 </div>
                 
     <!-- Selected scopes display -->

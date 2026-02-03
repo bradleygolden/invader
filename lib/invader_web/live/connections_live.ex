@@ -7,6 +7,7 @@ defmodule InvaderWeb.ConnectionsLive do
   alias Invader.Connections.Connection
   alias Invader.Connections.GitHub.TokenGenerator
   alias Invader.Connections.Sprites.TokenProvider
+  alias Invader.Connections.Telegram.{ChatRegistration, Client}
 
   import InvaderWeb.PageLayout
 
@@ -21,11 +22,14 @@ defmodule InvaderWeb.ConnectionsLive do
      |> assign(:connections, connections)
      |> assign(:has_github, MapSet.member?(existing_types, :github))
      |> assign(:has_sprites, MapSet.member?(existing_types, :sprites))
+     |> assign(:has_telegram, MapSet.member?(existing_types, :telegram))
      |> assign(:show_form, false)
      |> assign(:selected_type, :github)
      |> assign(:editing_connection, nil)
      |> assign(:show_private_key_input, false)
      |> assign(:show_token_input, false)
+     |> assign(:show_bot_token_input, false)
+     |> assign(:telegram_registration, nil)
      |> assign(:app_url, InvaderWeb.Endpoint.url())
      |> assign(:form, new_form())}
   end
@@ -72,7 +76,9 @@ defmodule InvaderWeb.ConnectionsLive do
      |> assign(:editing_connection, nil)
      |> assign(:selected_type, :github)
      |> assign(:show_private_key_input, false)
-     |> assign(:show_token_input, false)}
+     |> assign(:show_token_input, false)
+     |> assign(:show_bot_token_input, false)
+     |> assign(:telegram_registration, nil)}
   end
 
   @impl true
@@ -96,6 +102,51 @@ defmodule InvaderWeb.ConnectionsLive do
   end
 
   @impl true
+  def handle_event("show_bot_token_input", _params, socket) do
+    {:noreply, assign(socket, :show_bot_token_input, true)}
+  end
+
+  @impl true
+  def handle_event("hide_bot_token_input", _params, socket) do
+    {:noreply, assign(socket, :show_bot_token_input, false)}
+  end
+
+  @impl true
+  def handle_event("connect_telegram", %{"id" => id}, socket) do
+    case Connection.get(id) do
+      {:ok, connection} ->
+        case ChatRegistration.start_registration(connection) do
+          {:ok, registration} ->
+            form = AshPhoenix.Form.for_update(connection, :update, as: "connection") |> to_form()
+
+            {:noreply,
+             socket
+             |> assign(:telegram_registration, registration)
+             |> assign(:editing_connection, connection)
+             |> assign(:form, form)
+             |> assign(:show_form, true)
+             |> assign(:selected_type, :telegram)
+             |> put_flash(:info, "Click the link below to connect your Telegram")}
+
+          {:error, {:invalid_token, reason}} ->
+            {:noreply, put_flash(socket, :error, "Invalid bot token: #{inspect(reason)}")}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(socket, :error, "Failed to start registration: #{inspect(reason)}")}
+        end
+
+      {:error, _} ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("clear_telegram_registration", _params, socket) do
+    {:noreply, assign(socket, :telegram_registration, nil)}
+  end
+
+  @impl true
   def handle_event("validate", %{"connection" => params}, socket) do
     form = AshPhoenix.Form.validate(socket.assigns.form.source, params)
     selected_type = parse_type(params["type"])
@@ -109,6 +160,7 @@ defmodule InvaderWeb.ConnectionsLive do
         case params["type"] do
           "sprites" -> Map.put(params, "name", "Sprites")
           "github" -> Map.put(params, "name", "GitHub")
+          "telegram" -> Map.put(params, "name", "Telegram")
           _ -> params
         end
       else
@@ -120,6 +172,10 @@ defmodule InvaderWeb.ConnectionsLive do
         params
         |> maybe_preserve_field("private_key", socket.assigns.editing_connection.private_key)
         |> maybe_preserve_field("token", socket.assigns.editing_connection.token)
+        |> maybe_preserve_field(
+          "telegram_bot_token",
+          socket.assigns.editing_connection.telegram_bot_token
+        )
       else
         params
       end
@@ -134,9 +190,11 @@ defmodule InvaderWeb.ConnectionsLive do
          |> assign(:connections, connections)
          |> assign(:has_github, MapSet.member?(existing_types, :github))
          |> assign(:has_sprites, MapSet.member?(existing_types, :sprites))
+         |> assign(:has_telegram, MapSet.member?(existing_types, :telegram))
          |> assign(:form, new_form())
          |> assign(:show_form, false)
          |> assign(:editing_connection, nil)
+         |> assign(:telegram_registration, nil)
          |> put_flash(:info, "Connection saved")}
 
       {:error, form} ->
@@ -177,6 +235,7 @@ defmodule InvaderWeb.ConnectionsLive do
          |> assign(:connections, connections)
          |> assign(:has_github, MapSet.member?(existing_types, :github))
          |> assign(:has_sprites, MapSet.member?(existing_types, :sprites))
+         |> assign(:has_telegram, MapSet.member?(existing_types, :telegram))
          |> put_flash(:info, "Connection deleted")}
 
       {:error, _} ->
@@ -223,12 +282,26 @@ defmodule InvaderWeb.ConnectionsLive do
     TokenProvider.test_connection(connection)
   end
 
+  defp test_connection_by_type(%{type: :telegram, telegram_bot_token: token})
+       when is_binary(token) do
+    case Client.get_me(token) do
+      {:ok, _} -> {:ok, :connected}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp test_connection_by_type(%{type: :telegram}) do
+    {:error, :missing_bot_token}
+  end
+
   defp test_connection_by_type(_connection) do
     {:error, :unsupported_connection_type}
   end
 
   defp parse_type("sprites"), do: :sprites
   defp parse_type(:sprites), do: :sprites
+  defp parse_type("telegram"), do: :telegram
+  defp parse_type(:telegram), do: :telegram
   defp parse_type(_), do: :github
 
   defp maybe_preserve_field(params, field, existing_value) do
@@ -312,8 +385,25 @@ defmodule InvaderWeb.ConnectionsLive do
                           APP: {connection.app_id} | INSTALL: {connection.installation_id}
                         </div>
                       <% end %>
+                      <%= if connection.type == :telegram && connection.telegram_chat_id do %>
+                        <div class="text-cyan-700 text-[8px] mt-1 ml-6">
+                          CHAT: {if connection.telegram_username,
+                            do: "@#{connection.telegram_username}",
+                            else: connection.telegram_chat_id}
+                        </div>
+                      <% end %>
                     </div>
                     <div class="flex gap-2 ml-2">
+                      <%= if connection.type == :telegram && is_nil(connection.telegram_chat_id) && connection.telegram_bot_token do %>
+                        <button
+                          phx-click="connect_telegram"
+                          phx-value-id={connection.id}
+                          phx-disable-with="..."
+                          class="arcade-btn border-blue-500 text-blue-400 text-[8px] py-1 px-2"
+                        >
+                          CONNECT
+                        </button>
+                      <% end %>
                       <button
                         phx-click="test_connection"
                         phx-value-id={connection.id}
@@ -361,19 +451,27 @@ defmodule InvaderWeb.ConnectionsLive do
             >
               <input type="hidden" name={@form[:type].name} value={@selected_type} />
 
-              <%= if @selected_type == :github do %>
-                <.github_form
-                  form={@form}
-                  editing_connection={@editing_connection}
-                  show_private_key_input={@show_private_key_input}
-                  app_url={@app_url}
-                />
-              <% else %>
-                <.sprites_form
-                  form={@form}
-                  editing_connection={@editing_connection}
-                  show_token_input={@show_token_input}
-                />
+              <%= cond do %>
+                <% @selected_type == :github -> %>
+                  <.github_form
+                    form={@form}
+                    editing_connection={@editing_connection}
+                    show_private_key_input={@show_private_key_input}
+                    app_url={@app_url}
+                  />
+                <% @selected_type == :telegram -> %>
+                  <.telegram_form
+                    form={@form}
+                    editing_connection={@editing_connection}
+                    show_bot_token_input={@show_bot_token_input}
+                    telegram_registration={@telegram_registration}
+                  />
+                <% true -> %>
+                  <.sprites_form
+                    form={@form}
+                    editing_connection={@editing_connection}
+                    show_token_input={@show_token_input}
+                  />
               <% end %>
 
               <div class="flex justify-end gap-3 pt-3">
@@ -419,7 +517,17 @@ defmodule InvaderWeb.ConnectionsLive do
                   <span>+ ADD SPRITES</span>
                 </button>
               <% end %>
-              <%= if @has_github && @has_sprites do %>
+              <%= if !@has_telegram do %>
+                <button
+                  phx-click="add_connection_type"
+                  phx-value-type="telegram"
+                  class="arcade-btn border-cyan-700 text-cyan-400 text-[10px] w-full py-3 hover:border-cyan-500 flex items-center justify-center gap-2"
+                >
+                  <.type_icon type={:telegram} />
+                  <span>+ ADD TELEGRAM</span>
+                </button>
+              <% end %>
+              <%= if @has_github && @has_sprites && @has_telegram do %>
                 <p class="text-cyan-600 text-center py-4 text-[10px]">
                   - ALL CONNECTIONS CONFIGURED -
                 </p>
@@ -617,6 +725,130 @@ defmodule InvaderWeb.ConnectionsLive do
     """
   end
 
+  defp telegram_form(assigns) do
+    ~H"""
+    <div class="border border-cyan-800 p-3 bg-cyan-900/10">
+      <div class="text-cyan-400 text-[10px] mb-2 flex items-center gap-2">
+        <.setup_icon />
+        <span>TELEGRAM BOT SETUP</span>
+      </div>
+      <div class="text-cyan-600 text-[8px] space-y-1">
+        <p>
+          1. Message
+          <a
+            href="https://t.me/BotFather"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-cyan-400 underline hover:text-cyan-300"
+          >
+            @BotFather
+          </a>
+          on Telegram
+        </p>
+        <p>2. Send <code class="bg-black/50 px-1 text-cyan-300">/newbot</code> and follow prompts</p>
+        <p>3. Copy the bot token and paste it below</p>
+        <p>4. After saving, click "CONNECT" to link your chat</p>
+      </div>
+    </div>
+
+    <div class="space-y-2">
+      <label class="text-cyan-500 text-[10px] block">BOT TOKEN</label>
+      <%= if @editing_connection && @editing_connection.telegram_bot_token && !@show_bot_token_input do %>
+        <div class="border-2 border-green-700 bg-green-900/20 p-3">
+          <div class="flex items-center gap-3">
+            <.key_icon />
+            <div class="flex-1">
+              <div class="text-white text-[10px] font-medium">Bot Token</div>
+              <div class="text-cyan-500 text-[8px] font-mono">
+                {token_preview(@editing_connection.telegram_bot_token)}
+              </div>
+            </div>
+            <button
+              type="button"
+              phx-click="show_bot_token_input"
+              class="arcade-btn border-cyan-600 text-cyan-400 text-[8px] py-1 px-2"
+            >
+              REPLACE
+            </button>
+          </div>
+        </div>
+      <% else %>
+        <input
+          type="password"
+          name={@form[:telegram_bot_token].name}
+          placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
+          class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none font-mono"
+        />
+        <%= if @editing_connection && @editing_connection.telegram_bot_token do %>
+          <div class="flex items-center gap-2">
+            <span class="text-cyan-700 text-[8px]">Leave blank to keep current token</span>
+            <button
+              type="button"
+              phx-click="hide_bot_token_input"
+              class="text-cyan-500 hover:text-cyan-400 text-[8px]"
+            >
+              [CANCEL]
+            </button>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+
+    <%= if @editing_connection && @editing_connection.telegram_chat_id do %>
+      <div class="border-2 border-green-700 bg-green-900/20 p-3">
+        <div class="flex items-center gap-3">
+          <.telegram_icon />
+          <div class="flex-1">
+            <div class="text-white text-[10px] font-medium">Chat Connected</div>
+            <div class="text-cyan-500 text-[8px]">
+              <%= if @editing_connection.telegram_username do %>
+                @{@editing_connection.telegram_username}
+              <% else %>
+                Chat ID: {@editing_connection.telegram_chat_id}
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% else %>
+      <%= if @editing_connection && @telegram_registration do %>
+        <div class="border-2 border-yellow-700 bg-yellow-900/20 p-3">
+          <div class="text-yellow-400 text-[10px] mb-2">CONNECT YOUR TELEGRAM</div>
+          <div class="text-cyan-600 text-[8px] space-y-2">
+            <p>Click the link below to open Telegram and connect:</p>
+            <a
+              href={@telegram_registration.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="block bg-black/50 px-3 py-2 text-cyan-300 font-mono text-[10px] hover:text-cyan-200 break-all"
+            >
+              {@telegram_registration.link}
+            </a>
+            <p class="text-cyan-700">
+              Or search for @{@telegram_registration.bot_username} and send the start command
+            </p>
+          </div>
+          <button
+            type="button"
+            phx-click="clear_telegram_registration"
+            class="text-cyan-500 hover:text-cyan-400 text-[8px] mt-2"
+          >
+            [CANCEL]
+          </button>
+        </div>
+      <% else %>
+        <%= if @editing_connection && @editing_connection.telegram_bot_token do %>
+          <div class="border border-cyan-800 p-3">
+            <div class="text-cyan-600 text-[8px]">
+              Save the connection first, then click "CONNECT" to link your Telegram chat.
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    <% end %>
+    """
+  end
+
   defp type_icon(%{type: :github} = assigns) do
     ~H"""
     <svg
@@ -680,6 +912,35 @@ defmodule InvaderWeb.ConnectionsLive do
     """
   end
 
+  defp type_icon(%{type: :telegram} = assigns) do
+    ~H"""
+    <svg
+      viewBox="0 0 16 16"
+      class="w-5 h-5"
+      style="image-rendering: pixelated;"
+    >
+      <!-- Paper airplane pointing upper-right like Telegram logo -->
+      <!-- Main body -->
+      <rect x="1" y="8" width="2" height="1" class="fill-blue-400" />
+      <rect x="2" y="7" width="2" height="1" class="fill-blue-400" />
+      <rect x="3" y="6" width="3" height="1" class="fill-blue-400" />
+      <rect x="4" y="5" width="4" height="1" class="fill-blue-400" />
+      <rect x="5" y="4" width="5" height="1" class="fill-blue-400" />
+      <rect x="6" y="3" width="6" height="1" class="fill-blue-400" />
+      <rect x="7" y="2" width="6" height="1" class="fill-blue-400" />
+      <rect x="8" y="1" width="6" height="1" class="fill-blue-400" />
+      <!-- Bottom wing -->
+      <rect x="3" y="9" width="2" height="1" class="fill-blue-300" />
+      <rect x="4" y="10" width="2" height="1" class="fill-blue-300" />
+      <rect x="5" y="11" width="2" height="1" class="fill-blue-300" />
+      <!-- Fold/tail going down -->
+      <rect x="6" y="8" width="1" height="1" class="fill-blue-200" />
+      <rect x="7" y="9" width="1" height="2" class="fill-blue-200" />
+      <rect x="8" y="11" width="1" height="2" class="fill-blue-200" />
+    </svg>
+    """
+  end
+
   defp type_icon(assigns) do
     ~H"""
     <svg
@@ -690,6 +951,35 @@ defmodule InvaderWeb.ConnectionsLive do
       <rect x="2" y="6" width="4" height="4" />
       <rect x="6" y="7" width="4" height="2" />
       <rect x="10" y="6" width="4" height="4" />
+    </svg>
+    """
+  end
+
+  defp telegram_icon(assigns) do
+    ~H"""
+    <svg
+      viewBox="0 0 16 16"
+      class="w-6 h-6"
+      style="image-rendering: pixelated;"
+    >
+      <!-- Paper airplane pointing upper-right like Telegram logo -->
+      <!-- Main body -->
+      <rect x="1" y="8" width="2" height="1" class="fill-blue-400" />
+      <rect x="2" y="7" width="2" height="1" class="fill-blue-400" />
+      <rect x="3" y="6" width="3" height="1" class="fill-blue-400" />
+      <rect x="4" y="5" width="4" height="1" class="fill-blue-400" />
+      <rect x="5" y="4" width="5" height="1" class="fill-blue-400" />
+      <rect x="6" y="3" width="6" height="1" class="fill-blue-400" />
+      <rect x="7" y="2" width="6" height="1" class="fill-blue-400" />
+      <rect x="8" y="1" width="6" height="1" class="fill-blue-400" />
+      <!-- Bottom wing -->
+      <rect x="3" y="9" width="2" height="1" class="fill-blue-300" />
+      <rect x="4" y="10" width="2" height="1" class="fill-blue-300" />
+      <rect x="5" y="11" width="2" height="1" class="fill-blue-300" />
+      <!-- Fold/tail going down -->
+      <rect x="6" y="8" width="1" height="1" class="fill-blue-200" />
+      <rect x="7" y="9" width="1" height="2" class="fill-blue-200" />
+      <rect x="8" y="11" width="1" height="2" class="fill-blue-200" />
     </svg>
     """
   end
