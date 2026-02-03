@@ -95,6 +95,13 @@ defmodule InvaderWeb.Router do
     post "/proxy", ProxyController, :run
   end
 
+  # Webhook routes (no auth required, verified by secret token)
+  scope "/webhooks", InvaderWeb do
+    pipe_through :api
+
+    post "/telegram", TelegramWebhookController, :handle
+  end
+
   # CLI scripts (served as static files)
   scope "/cli", InvaderWeb do
     pipe_through :api

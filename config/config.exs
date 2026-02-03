@@ -11,7 +11,7 @@ config :ash_oban, pro?: false
 
 config :invader, Oban,
   engine: Oban.Engines.Lite,
-  queues: [default: 10, missions: 5, sprites: 3],
+  queues: [default: 10, missions: 5, sprites: 3, notifications: 5],
   repo: Invader.Repo,
   plugins: [
     {Oban.Plugins.Cron,
