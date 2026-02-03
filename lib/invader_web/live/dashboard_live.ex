@@ -711,7 +711,9 @@ defmodule InvaderWeb.DashboardLive do
                       <span class="text-yellow-500 text-xs flex-shrink-0">{idx + 1}.</span>
                       <div class="min-w-0">
                         <div class="text-white text-xs flex items-center gap-2 truncate">
-                          <span class="truncate">{mission.sprite && mission.sprite.name || mission.sprite_name}</span>
+                          <span class="truncate">
+                            {(mission.sprite && mission.sprite.name) || mission.sprite_name}
+                          </span>
                           <%= if mission.status == :provisioning do %>
                             <span class="text-[8px] text-orange-400 flex-shrink-0 animate-pulse">
                               PROVISIONING...

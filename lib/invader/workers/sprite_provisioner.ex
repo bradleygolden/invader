@@ -121,11 +121,19 @@ defmodule Invader.Workers.SpriteProvisioner do
   end
 
   defp inject_agent_config(%Mission{sprite_name: sprite_name, agent_provider: nil}) do
-    Logger.info("No agent provider configured for sprite #{sprite_name}, skipping config injection")
+    Logger.info(
+      "No agent provider configured for sprite #{sprite_name}, skipping config injection"
+    )
+
     :ok
   end
 
-  defp inject_agent_config(%Mission{sprite_name: sprite_name, agent_provider: provider, agent_api_key: api_key, agent_base_url: base_url}) do
+  defp inject_agent_config(%Mission{
+         sprite_name: sprite_name,
+         agent_provider: provider,
+         agent_api_key: api_key,
+         agent_base_url: base_url
+       }) do
     Logger.info("Injecting agent config for provider #{provider} into sprite #{sprite_name}")
 
     opts = if base_url, do: [base_url: base_url], else: []
@@ -136,7 +144,10 @@ defmodule Invader.Workers.SpriteProvisioner do
         :ok
 
       {:error, reason} ->
-        Logger.error("Failed to inject agent config for sprite #{sprite_name}: #{inspect(reason)}")
+        Logger.error(
+          "Failed to inject agent config for sprite #{sprite_name}: #{inspect(reason)}"
+        )
+
         {:error, {:agent_config_failed, reason}}
     end
   end

@@ -331,7 +331,7 @@ defmodule InvaderWeb.MissionLive.Show do
           <div>
             <span class="text-cyan-600">SPRITE</span>
             <div class="text-cyan-400">
-              {@mission.sprite && @mission.sprite.name || @mission.sprite_name}
+              {(@mission.sprite && @mission.sprite.name) || @mission.sprite_name}
               <%= if @mission.status == :provisioning do %>
                 <span class="text-orange-400 text-[8px] ml-2 animate-pulse">PROVISIONING...</span>
               <% end %>
@@ -387,8 +387,8 @@ defmodule InvaderWeb.MissionLive.Show do
             </div>
           </div>
         </div>
-
-      <!-- Inline Prompt Content -->
+        
+    <!-- Inline Prompt Content -->
         <%= if @mission.prompt && !@mission.prompt_path do %>
           <div class="border border-cyan-800 rounded p-3 bg-cyan-950/20">
             <div class="flex items-center justify-between mb-2">

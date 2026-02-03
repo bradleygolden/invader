@@ -37,7 +37,9 @@ defmodule Invader.Missions.Wave do
       argument :mission_id, :uuid, allow_nil?: false
       argument :number, :integer, allow_nil?: false
 
-      filter expr(mission_id == ^arg(:mission_id) and number == ^arg(:number) and is_nil(finished_at))
+      filter expr(
+               mission_id == ^arg(:mission_id) and number == ^arg(:number) and is_nil(finished_at)
+             )
 
       get? true
     end

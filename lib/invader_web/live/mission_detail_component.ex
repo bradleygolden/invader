@@ -43,7 +43,7 @@ defmodule InvaderWeb.MissionDetailComponent do
           </div>
         </div>
       </div>
-
+      
     <!-- Inline Prompt Content -->
       <%= if @mission.prompt && !@mission.prompt_path do %>
         <div class="border border-green-800 rounded p-3 bg-green-950/20">

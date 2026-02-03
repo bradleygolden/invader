@@ -197,7 +197,8 @@ defmodule Invader.Missions.Mission do
         status = Ash.Changeset.get_attribute(changeset, :status)
 
         if status in [:completed, :failed, :aborted] do
-          {:error, field: :status, message: "cannot update waves on completed/failed/aborted missions"}
+          {:error,
+           field: :status, message: "cannot update waves on completed/failed/aborted missions"}
         else
           :ok
         end
@@ -208,7 +209,8 @@ defmodule Invader.Missions.Mission do
         current_wave = changeset.data.current_wave || 0
 
         if max_waves < current_wave do
-          {:error, field: :max_waves, message: "cannot set max_waves below current wave (#{current_wave})"}
+          {:error,
+           field: :max_waves, message: "cannot set max_waves below current wave (#{current_wave})"}
         else
           :ok
         end
@@ -223,7 +225,8 @@ defmodule Invader.Missions.Mission do
         status = Ash.Changeset.get_attribute(changeset, :status)
 
         if status in [:completed, :failed, :aborted] do
-          {:error, field: :status, message: "cannot update prompt on completed/failed/aborted missions"}
+          {:error,
+           field: :status, message: "cannot update prompt on completed/failed/aborted missions"}
         else
           :ok
         end
@@ -372,7 +375,18 @@ defmodule Invader.Missions.Mission do
       allow_nil? false
       default :pending
       public? true
-      constraints one_of: [:pending, :provisioning, :setup, :running, :pausing, :paused, :completed, :failed, :aborted]
+
+      constraints one_of: [
+                    :pending,
+                    :provisioning,
+                    :setup,
+                    :running,
+                    :pausing,
+                    :paused,
+                    :completed,
+                    :failed,
+                    :aborted
+                  ]
     end
 
     attribute :error_message, :string do
