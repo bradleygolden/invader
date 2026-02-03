@@ -126,9 +126,24 @@ defmodule Invader.Prompts.ContextBuilder do
     Options for 'ask':
     - `--timeout <ms>` - Timeout in milliseconds (default: 300000 = 5 min)
 
-    IMPORTANT: Send plain text messages. Do NOT escape special characters (like \\! or \\.) - the message will be sent as-is.
+    ### Response Flow
+    When using `telegram ask`:
+    1. The question is sent to the user via Telegram
+    2. The command blocks until the user replies (or timeout)
+    3. The user's response is returned as stdout
 
-    Use these commands when you need human input, approval, or want to notify the user of progress.
+    IMPORTANT: After receiving a response from `telegram ask`, if you want to reply to the user,
+    you MUST use `telegram notify` to send your response. Your text output does NOT automatically
+    go to Telegram - only explicit `telegram notify` or `telegram ask` commands send messages.
+
+    Example conversation:
+    ```
+    $ invader telegram ask "Should I deploy to production?"
+    yes, go ahead
+    $ invader telegram notify "Deploying now..."
+    ```
+
+    IMPORTANT: Send plain text messages. Do NOT escape special characters (like \\! or \\.) - the message will be sent as-is.
     """
   end
 
@@ -138,6 +153,9 @@ defmodule Invader.Prompts.ContextBuilder do
     if map_size(allowed_scopes) == 0 do
       ""
     else
+      has_ask = Map.has_key?(allowed_scopes, "telegram:ask")
+      has_notify = Map.has_key?(allowed_scopes, "telegram:notify")
+
       commands =
         allowed_scopes
         |> Enum.sort_by(fn {scope, _} -> scope end)
@@ -146,18 +164,42 @@ defmodule Invader.Prompts.ContextBuilder do
         end)
         |> Enum.join("\n")
 
+      response_flow =
+        if has_ask and has_notify do
+          """
+
+          ### Response Flow
+          When using `telegram ask`:
+          1. The question is sent to the user via Telegram
+          2. The command blocks until the user replies (or timeout)
+          3. The user's response is returned as stdout
+
+          IMPORTANT: After receiving a response from `telegram ask`, if you want to reply to the user,
+          you MUST use `telegram notify` to send your response. Your text output does NOT automatically
+          go to Telegram - only explicit `telegram notify` or `telegram ask` commands send messages.
+          """
+        else
+          ""
+        end
+
+      ask_options =
+        if has_ask do
+          """
+
+          Options for 'ask':
+          - `--timeout <ms>` - Timeout in milliseconds (default: 300000 = 5 min)
+          """
+        else
+          ""
+        end
+
       """
       ## Telegram Commands (Human-in-the-Loop)
       You can interact with the user via Telegram:
 
       #{commands}
-
-      Options for 'ask':
-      - `--timeout <ms>` - Timeout in milliseconds (default: 300000 = 5 min)
-
+      #{ask_options}#{response_flow}
       IMPORTANT: Send plain text messages. Do NOT escape special characters (like \\! or \\.) - the message will be sent as-is.
-
-      Use these commands when you need human input, approval, or want to notify the user.
       """
     end
   end
