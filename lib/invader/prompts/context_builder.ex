@@ -126,6 +126,8 @@ defmodule Invader.Prompts.ContextBuilder do
     Options for 'ask':
     - `--timeout <ms>` - Timeout in milliseconds (default: 300000 = 5 min)
 
+    IMPORTANT: Send plain text messages. Do NOT escape special characters (like \\! or \\.) - the message will be sent as-is.
+
     Use these commands when you need human input, approval, or want to notify the user of progress.
     """
   end
@@ -152,6 +154,8 @@ defmodule Invader.Prompts.ContextBuilder do
 
       Options for 'ask':
       - `--timeout <ms>` - Timeout in milliseconds (default: 300000 = 5 min)
+
+      IMPORTANT: Send plain text messages. Do NOT escape special characters (like \\! or \\.) - the message will be sent as-is.
 
       Use these commands when you need human input, approval, or want to notify the user.
       """
