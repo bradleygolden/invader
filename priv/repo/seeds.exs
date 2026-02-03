@@ -18,10 +18,11 @@ alias Invader.Scopes.ScopePreset
 # - Issues: Read & Write
 # - Pull requests: Read & Write
 # - Metadata: Read-only
+# - Telegram: Human-in-the-loop interaction
 scope_presets = [
   %{
     name: "full-access",
-    description: "Full access to all currently supported GitHub commands (PRs, issues, repos)",
+    description: "Full access to all operations (GitHub, Telegram, etc.)",
     scopes: ["*"],
     is_system: true
   },
@@ -58,6 +59,39 @@ scope_presets = [
       "github:pr:*",
       "github:issue:*",
       "github:repo:*"
+    ],
+    is_system: true
+  },
+  # Telegram presets
+  %{
+    name: "telegram-only",
+    description: "Telegram human-in-the-loop interaction only (ask questions, send notifications)",
+    scopes: [
+      "telegram:*"
+    ],
+    is_system: true
+  },
+  %{
+    name: "github-contributor-interactive",
+    description: "GitHub contributor access with Telegram human-in-the-loop",
+    scopes: [
+      "github:pr:*",
+      "github:issue:*",
+      "github:repo:clone",
+      "github:repo:list",
+      "github:repo:view",
+      "telegram:*"
+    ],
+    is_system: true
+  },
+  %{
+    name: "github-maintainer-interactive",
+    description: "GitHub maintainer access with Telegram human-in-the-loop",
+    scopes: [
+      "github:pr:*",
+      "github:issue:*",
+      "github:repo:*",
+      "telegram:*"
     ],
     is_system: true
   }
