@@ -122,7 +122,10 @@ defmodule Invader.SpriteCli.Cli do
           end
         end
 
-        result = collect_and_broadcast(cmd, topic, timeout, [], mission_id)
+        # Monitor the command process so we detect if it's killed
+        monitor_ref = Process.monitor(cmd.pid)
+        result = collect_and_broadcast(cmd, topic, timeout, [], mission_id, monitor_ref)
+        Process.demonitor(monitor_ref, [:flush])
 
         # Unregister when done
         if mission_id do
@@ -161,19 +164,20 @@ defmodule Invader.SpriteCli.Cli do
     _ -> :ok
   end
 
-  defp collect_and_broadcast(cmd, topic, timeout, acc, mission_id) do
+  defp collect_and_broadcast(cmd, topic, timeout, acc, _mission_id, monitor_ref) do
     cmd_ref = cmd.ref
+    cmd_pid = cmd.pid
 
     receive do
       {:stdout, %{ref: ^cmd_ref}, data} ->
         # Broadcast the chunk
         Phoenix.PubSub.broadcast(Invader.PubSub, topic, {:wave_output, data})
-        collect_and_broadcast(cmd, topic, timeout, [data | acc], mission_id)
+        collect_and_broadcast(cmd, topic, timeout, [data | acc], nil, monitor_ref)
 
       {:stderr, %{ref: ^cmd_ref}, data} ->
         # Broadcast stderr too
         Phoenix.PubSub.broadcast(Invader.PubSub, topic, {:wave_output, data})
-        collect_and_broadcast(cmd, topic, timeout, [data | acc], mission_id)
+        collect_and_broadcast(cmd, topic, timeout, [data | acc], nil, monitor_ref)
 
       {:exit, %{ref: ^cmd_ref}, exit_code} ->
         output = acc |> Enum.reverse() |> IO.iodata_to_binary()
@@ -186,6 +190,10 @@ defmodule Invader.SpriteCli.Cli do
 
       {:error, %{ref: ^cmd_ref}, reason} ->
         {:error, reason}
+
+      {:DOWN, ^monitor_ref, :process, ^cmd_pid, _reason} ->
+        # The command process was killed (e.g., by pause/abort)
+        {:error, :killed}
     after
       timeout ->
         {:error, :timeout}
