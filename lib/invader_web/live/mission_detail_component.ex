@@ -44,6 +44,16 @@ defmodule InvaderWeb.MissionDetailComponent do
         </div>
       </div>
 
+    <!-- Inline Prompt Content -->
+      <%= if @mission.prompt && !@mission.prompt_path do %>
+        <div class="border border-green-800 rounded p-3 bg-green-950/20">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-green-600 text-sm">INLINE PROMPT</span>
+          </div>
+          <pre class="text-green-400 text-xs whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">{@mission.prompt}</pre>
+        </div>
+      <% end %>
+
       <%= if @mission.error_message do %>
         <div class="border border-red-700 rounded p-3 bg-red-950/30">
           <span class="text-red-500 text-sm">ERROR</span>
