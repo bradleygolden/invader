@@ -752,7 +752,7 @@ defmodule InvaderWeb.DashboardLive do
                       <div class="min-w-0">
                         <div class="text-white text-xs flex items-center gap-2 truncate">
                           <span class="truncate">
-                            {mission.sprite_name}
+                            {mission.sprite_name || (mission.sprite && mission.sprite.name) || "-"}
                           </span>
                           <%= if mission.status == :provisioning do %>
                             <span class="text-[8px] text-orange-400 flex-shrink-0 animate-pulse">
