@@ -401,6 +401,34 @@ defmodule Invader.Missions.Mission do
       change Invader.Missions.Changes.DeleteWaves
       change Invader.Missions.Changes.RerunMission
     end
+
+    update :rerun_provision do
+      require_atomic? false
+
+      # Only for missions that auto-create sprites - go back to provisioning
+      validate fn changeset, _context ->
+        if changeset.data.sprite_auto_created do
+          :ok
+        else
+          {:error, message: "can only rerun_provision missions that auto-create their sprite"}
+        end
+      end
+
+      # Reset mission state
+      change set_attribute(:error_message, nil)
+      change set_attribute(:finished_at, nil)
+      change set_attribute(:started_at, nil)
+      change set_attribute(:current_wave, 0)
+      change set_attribute(:sprite_id, nil)
+
+      # Transition to provisioning
+      change transition_state(:provisioning)
+      change set_attribute(:status, :provisioning)
+
+      # Delete old waves and re-enqueue sprite provisioner
+      change Invader.Missions.Changes.DeleteWaves
+      change Invader.Missions.Changes.EnqueueSpriteProvisioner
+    end
   end
 
   attributes do
