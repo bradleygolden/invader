@@ -40,6 +40,11 @@ defmodule Invader.Scopes.Parsers.Telegram do
         description: "Send a fire-and-forget notification",
         command: "invader telegram notify \"message\"",
         category: :notification
+      },
+      "telegram:send_document" => %{
+        description: "Send a document to the user via Telegram",
+        command: "invader telegram send-document <file_path> [--caption \"message\"]",
+        category: :notification
       }
     }
   end

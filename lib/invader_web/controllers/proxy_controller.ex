@@ -14,7 +14,11 @@ defmodule InvaderWeb.ProxyController do
   @doc """
   Execute a proxied command.
 
-  ## Request body
+  Handles different actions:
+  - `"gh"` - GitHub CLI commands
+  - `"telegram"` - Telegram operations (ask, notify, send_document)
+
+  ## GitHub Request
 
       {
         "action": "gh",
@@ -25,19 +29,17 @@ defmodule InvaderWeb.ProxyController do
         }
       }
 
-  ## Response
+  ## Telegram Request
 
-  For proxy mode:
-
-      {"mode": "proxy", "output": "..."}
-
-  For token mode:
-
-      {"mode": "token", "token": "...", "expires_at": "..."}
-
-  On error:
-
-      {"error": "..."}
+      {
+        "action": "telegram",
+        "input": {
+          "operation": "ask" | "notify" | "send_document",
+          "message": "...",  // for ask/notify
+          "file_path": "...",  // for send_document
+          "caption": "..."  // optional, for send_document
+        }
+      }
   """
   def run(conn, %{"action" => "gh", "input" => input}) do
     case verify_sprite_token(conn) do
@@ -98,49 +100,18 @@ defmodule InvaderWeb.ProxyController do
     end
   end
 
-  @doc """
-  Execute a Telegram ask command.
-
-  ## Request body
-
-      {
-        "action": "telegram",
-        "input": {
-          "operation": "ask",
-          "message": "Deploy to production?",
-          "timeout": 300000  // optional, milliseconds (default 5 min)
-        }
-      }
-
-  ## Response
-
-  On success:
-
-      {"response": "yes"}
-
-  On timeout:
-
-      {"error": "timeout"}
-
-  On error:
-
-      {"error": "..."}
-  """
   def run(conn, %{"action" => "telegram", "input" => input}) do
-    alias Invader.Connections.Telegram.Notifier
     alias Invader.Scopes.Parsers.Telegram, as: TelegramParser
 
     case verify_sprite_token(conn) do
       {:ok, claims} ->
         operation = input["operation"]
-        message = input["message"]
-        timeout = input["timeout"]
         mission_id = claims[:mission_id]
 
         # Check scope permission for Telegram operations
         case check_telegram_scope_permission(claims, operation) do
           :ok ->
-            execute_telegram_operation(conn, operation, message, timeout, mission_id)
+            execute_telegram_operation(conn, operation, input, mission_id)
 
           {:error, :forbidden, scope} ->
             conn
@@ -159,8 +130,23 @@ defmodule InvaderWeb.ProxyController do
     end
   end
 
-  defp execute_telegram_operation(conn, operation, message, timeout, mission_id) do
+  def run(conn, %{"action" => action}) do
+    conn
+    |> put_status(400)
+    |> json(%{error: "Unknown action: #{action}"})
+  end
+
+  def run(conn, _params) do
+    conn
+    |> put_status(400)
+    |> json(%{error: "Missing action parameter"})
+  end
+
+  defp execute_telegram_operation(conn, operation, input, mission_id) do
     alias Invader.Connections.Telegram.Notifier
+
+    message = input["message"]
+    timeout = input["timeout"]
 
     case operation do
       "ask" when is_binary(message) ->
@@ -198,10 +184,48 @@ defmodule InvaderWeb.ProxyController do
             |> json(%{error: inspect(reason)})
         end
 
+      "send_document" ->
+        file_content = input["file_content"]
+        filename = input["filename"]
+        caption = input["caption"]
+
+        case {file_content, filename} do
+          {content, name} when is_binary(content) and is_binary(name) ->
+            case Base.decode64(content) do
+              {:ok, file_binary} ->
+                opts = if caption, do: [caption: caption], else: []
+
+                case Notifier.send_document(file_binary, filename, opts) do
+                  {:ok, _message} ->
+                    json(conn, %{status: "sent"})
+
+                  {:error, :not_configured} ->
+                    conn
+                    |> put_status(503)
+                    |> json(%{error: "not_configured", message: "Telegram not connected"})
+
+                  {:error, reason} ->
+                    conn
+                    |> put_status(500)
+                    |> json(%{error: inspect(reason)})
+                end
+
+              :error ->
+                conn
+                |> put_status(400)
+                |> json(%{error: "Invalid file_content: must be base64 encoded"})
+            end
+
+          _ ->
+            conn
+            |> put_status(400)
+            |> json(%{error: "send_document requires 'file_content' (base64) and 'filename'"})
+        end
+
       _ ->
         conn
         |> put_status(400)
-        |> json(%{error: "Invalid operation. Use 'ask' or 'notify' with a message"})
+        |> json(%{error: "Invalid operation. Use 'ask', 'notify', or 'send_document'"})
     end
   end
 
@@ -237,18 +261,6 @@ defmodule InvaderWeb.ProxyController do
           :ok
       end
     end
-  end
-
-  def run(conn, %{"action" => action}) do
-    conn
-    |> put_status(400)
-    |> json(%{error: "Unknown action: #{action}"})
-  end
-
-  def run(conn, _params) do
-    conn
-    |> put_status(400)
-    |> json(%{error: "Missing action parameter"})
   end
 
   defp parse_mode(nil), do: nil

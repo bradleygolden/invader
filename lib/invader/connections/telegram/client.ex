@@ -52,8 +52,44 @@ defmodule Invader.Connections.Telegram.Client do
     get(token, "getMe")
   end
 
+  @doc """
+  Send a document to a chat.
+
+  ## Parameters
+    * `token` - Bot token
+    * `chat_id` - Target chat ID
+    * `file_binary` - The file content as binary
+    * `opts` - Options:
+      * `:filename` - Name for the file (required)
+      * `:caption` - Optional caption for the document (max 1024 chars)
+      * `:content_type` - MIME type (default: "application/octet-stream")
+
+  ## Returns
+    * `{:ok, message}` - The sent message object
+    * `{:error, reason}` - Error description
+  """
+  def send_document(token, chat_id, file_binary, opts \\ []) do
+    filename = Keyword.fetch!(opts, :filename)
+    caption = Keyword.get(opts, :caption)
+    content_type = Keyword.get(opts, :content_type, "application/octet-stream")
+
+    fields =
+      [
+        {"chat_id", to_string(chat_id)},
+        {"document", {file_binary, filename: filename, content_type: content_type}}
+      ]
+      |> maybe_add_multipart_field("caption", caption)
+
+    post_multipart(token, "sendDocument", fields)
+  end
+
   defp post(token, method, body) do
     Req.post("#{@base_url}#{token}/#{method}", json: body)
+    |> handle_response()
+  end
+
+  defp post_multipart(token, method, fields) do
+    Req.post("#{@base_url}#{token}/#{method}", form_multipart: fields)
     |> handle_response()
   end
 
@@ -76,4 +112,7 @@ defmodule Invader.Connections.Telegram.Client do
 
   defp maybe_add(map, _key, nil), do: map
   defp maybe_add(map, key, value), do: Map.put(map, key, value)
+
+  defp maybe_add_multipart_field(fields, _key, nil), do: fields
+  defp maybe_add_multipart_field(fields, key, value), do: fields ++ [{key, value}]
 end

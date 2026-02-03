@@ -256,8 +256,14 @@ defmodule InvaderWeb.CliController do
     category_case = generate_category_case(grouped)
     main_help = generate_main_help_text(grouped, has_telegram)
     gh_help = generate_gh_help_text(grouped)
-    telegram_functions = if has_telegram, do: generate_telegram_functions(telegram_scopes), else: ""
-    telegram_case = if has_telegram, do: "    telegram)\n      shift\n      cmd_telegram \"$@\"\n      ;;", else: ""
+
+    telegram_functions =
+      if has_telegram, do: generate_telegram_functions(telegram_scopes), else: ""
+
+    telegram_case =
+      if has_telegram,
+        do: "    telegram)\n      shift\n      cmd_telegram \"$@\"\n      ;;",
+        else: ""
 
     """
     #!/usr/bin/env bash
@@ -414,114 +420,216 @@ defmodule InvaderWeb.CliController do
   defp generate_telegram_functions(telegram_scopes) do
     has_ask = Map.has_key?(telegram_scopes, "telegram:ask")
     has_notify = Map.has_key?(telegram_scopes, "telegram:notify")
+    has_send_document = Map.has_key?(telegram_scopes, "telegram:send_document")
 
-    ask_help = if has_ask, do: "  ask <message>       Send a message and wait for user reply", else: ""
-    notify_help = if has_notify, do: "  notify <message>    Send a notification (fire-and-forget)", else: ""
-    commands_help = [ask_help, notify_help] |> Enum.reject(&(&1 == "")) |> Enum.join("\n")
+    ask_help =
+      if has_ask, do: "  ask <message>       Send a message and wait for user reply", else: ""
 
-    ask_case = if has_ask, do: """
-        ask)
-          shift
-          telegram_ask "$@"
-          ;;
-    """, else: ""
+    notify_help =
+      if has_notify, do: "  notify <message>    Send a notification (fire-and-forget)", else: ""
 
-    notify_case = if has_notify, do: """
-        notify)
-          shift
-          telegram_notify "$@"
-          ;;
-    """, else: ""
+    send_document_help =
+      if has_send_document, do: "  send-document <file> Share a document with the user", else: ""
 
-    ask_function = if has_ask, do: """
-    telegram_ask() {
-      local message=""
-      local timeout=""
+    commands_help =
+      [ask_help, notify_help, send_document_help] |> Enum.reject(&(&1 == "")) |> Enum.join("\n")
 
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          --timeout)
-            timeout="$2"
-            shift 2
-            ;;
-          *)
-            if [ -z "$message" ]; then
-              message="$1"
+    ask_case =
+      if has_ask,
+        do: """
+            ask)
+              shift
+              telegram_ask "$@"
+              ;;
+        """,
+        else: ""
+
+    notify_case =
+      if has_notify,
+        do: """
+            notify)
+              shift
+              telegram_notify "$@"
+              ;;
+        """,
+        else: ""
+
+    send_document_case =
+      if has_send_document,
+        do: """
+            send-document)
+              shift
+              telegram_send_document "$@"
+              ;;
+        """,
+        else: ""
+
+    ask_function =
+      if has_ask,
+        do: """
+        telegram_ask() {
+          local message=""
+          local timeout=""
+
+          while [ $# -gt 0 ]; do
+            case "$1" in
+              --timeout)
+                timeout="$2"
+                shift 2
+                ;;
+              *)
+                if [ -z "$message" ]; then
+                  message="$1"
+                else
+                  message="$message $1"
+                fi
+                shift
+                ;;
+            esac
+          done
+
+          if [ -z "$message" ]; then
+            echo "Error: Message is required" >&2
+            echo "Usage: invader telegram ask <message> [--timeout <ms>]" >&2
+            exit 1
+          fi
+
+          # Escape message for JSON
+          message="${message//\\\\/\\\\\\\\}"
+          message="${message//\\"/\\\\\\"}"
+          message="${message//$'\\n'/\\\\n}"
+
+          local input="{\\"operation\\": \\"ask\\", \\"message\\": \\"${message}\\""
+          if [ -n "$timeout" ]; then
+            input+=", \\"timeout\\": ${timeout}"
+          fi
+          input+="}"
+
+          local result
+          result=$(api_call "telegram" "$input")
+
+          local error
+          error=$(echo "$result" | jq -r '.error // empty' 2>/dev/null || true)
+          if [ -n "$error" ]; then
+            local err_message
+            err_message=$(echo "$result" | jq -r '.message // empty' 2>/dev/null || true)
+            if [ "$error" = "timeout" ]; then
+              echo "Timeout: No response received" >&2
+              exit 124  # Standard timeout exit code
             else
-              message="$message $1"
+              echo "Error: $error" >&2
+              [ -n "$err_message" ] && echo "$err_message" >&2
+              exit 1
             fi
-            shift
-            ;;
-        esac
-      done
+          fi
 
-      if [ -z "$message" ]; then
-        echo "Error: Message is required" >&2
-        echo "Usage: invader telegram ask <message> [--timeout <ms>]" >&2
-        exit 1
-      fi
+          echo "$result" | jq -r '.response // empty'
+        }
+        """,
+        else: ""
 
-      # Escape message for JSON
-      message="${message//\\\\/\\\\\\\\}"
-      message="${message//\\"/\\\\\\"}"
-      message="${message//$'\\n'/\\\\n}"
+    notify_function =
+      if has_notify,
+        do: """
+        telegram_notify() {
+          local message="$*"
 
-      local input="{\\"operation\\": \\"ask\\", \\"message\\": \\"${message}\\""
-      if [ -n "$timeout" ]; then
-        input+=", \\"timeout\\": ${timeout}"
-      fi
-      input+="}"
+          if [ -z "$message" ]; then
+            echo "Error: Message is required" >&2
+            echo "Usage: invader telegram notify <message>" >&2
+            exit 1
+          fi
 
-      local result
-      result=$(api_call "telegram" "$input")
+          # Escape message for JSON
+          message="${message//\\\\/\\\\\\\\}"
+          message="${message//\\"/\\\\\\"}"
+          message="${message//$'\\n'/\\\\n}"
 
-      local error
-      error=$(echo "$result" | jq -r '.error // empty' 2>/dev/null || true)
-      if [ -n "$error" ]; then
-        local err_message
-        err_message=$(echo "$result" | jq -r '.message // empty' 2>/dev/null || true)
-        if [ "$error" = "timeout" ]; then
-          echo "Timeout: No response received" >&2
-          exit 124  # Standard timeout exit code
-        else
-          echo "Error: $error" >&2
-          [ -n "$err_message" ] && echo "$err_message" >&2
-          exit 1
-        fi
-      fi
+          local result
+          result=$(api_call "telegram" "{\\"operation\\": \\"notify\\", \\"message\\": \\"${message}\\"}")
 
-      echo "$result" | jq -r '.response // empty'
-    }
-    """, else: ""
+          local error
+          error=$(echo "$result" | jq -r '.error // empty' 2>/dev/null || true)
+          if [ -n "$error" ]; then
+            echo "Error: $error" >&2
+            exit 1
+          fi
 
-    notify_function = if has_notify, do: """
-    telegram_notify() {
-      local message="$*"
+          echo "Notification queued"
+        }
+        """,
+        else: ""
 
-      if [ -z "$message" ]; then
-        echo "Error: Message is required" >&2
-        echo "Usage: invader telegram notify <message>" >&2
-        exit 1
-      fi
+    send_document_function =
+      if has_send_document,
+        do: """
+        telegram_send_document() {
+          local file_path=""
+          local caption=""
 
-      # Escape message for JSON
-      message="${message//\\\\/\\\\\\\\}"
-      message="${message//\\"/\\\\\\"}"
-      message="${message//$'\\n'/\\\\n}"
+          while [ $# -gt 0 ]; do
+            case "$1" in
+              --caption)
+                caption="$2"
+                shift 2
+                ;;
+              *)
+                if [ -z "$file_path" ]; then
+                  file_path="$1"
+                fi
+                shift
+                ;;
+            esac
+          done
 
-      local result
-      result=$(api_call "telegram" "{\\"operation\\": \\"notify\\", \\"message\\": \\"${message}\\"}")
+          if [ -z "$file_path" ]; then
+            echo "Error: File path is required" >&2
+            echo "Usage: invader telegram send-document <file_path> [--caption \\"message\\"]" >&2
+            exit 1
+          fi
 
-      local error
-      error=$(echo "$result" | jq -r '.error // empty' 2>/dev/null || true)
-      if [ -n "$error" ]; then
-        echo "Error: $error" >&2
-        exit 1
-      fi
+          if [ ! -f "$file_path" ]; then
+            echo "Error: File not found: $file_path" >&2
+            exit 1
+          fi
 
-      echo "Notification queued"
-    }
-    """, else: ""
+          # Get filename from path
+          local filename
+          filename=$(basename "$file_path")
+
+          # Base64 encode the file
+          local file_content
+          file_content=$(base64 < "$file_path" | tr -d '\\n')
+
+          # Escape filename and caption for JSON
+          filename="${filename//\\\\/\\\\\\\\}"
+          filename="${filename//\\"/\\\\\\"}"
+
+          local input="{\\"operation\\": \\"send_document\\", \\"filename\\": \\"${filename}\\", \\"file_content\\": \\"${file_content}\\""
+          if [ -n "$caption" ]; then
+            caption="${caption//\\\\/\\\\\\\\}"
+            caption="${caption//\\"/\\\\\\"}"
+            input+=", \\"caption\\": \\"${caption}\\""
+          fi
+          input+="}"
+
+          local result
+          result=$(api_call "telegram" "$input")
+
+          local error
+          error=$(echo "$result" | jq -r '.error // empty' 2>/dev/null || true)
+          if [ -n "$error" ]; then
+            local err_message
+            err_message=$(echo "$result" | jq -r '.message // empty' 2>/dev/null || true)
+            echo "Error: $error" >&2
+            [ -n "$err_message" ] && echo "$err_message" >&2
+            exit 1
+          fi
+
+          echo "Document sent: $filename"
+        }
+        """,
+        else: ""
 
     """
     # Telegram help
@@ -557,7 +665,7 @@ defmodule InvaderWeb.CliController do
           show_telegram_help
           exit 0
           ;;
-    #{ask_case}#{notify_case}    *)
+    #{ask_case}#{notify_case}#{send_document_case}    *)
           echo "Unknown telegram command: $1" >&2
           echo "Run 'invader telegram --help' for available commands." >&2
           exit 1
@@ -565,7 +673,7 @@ defmodule InvaderWeb.CliController do
       esac
     }
 
-    #{ask_function}#{notify_function}
+    #{ask_function}#{notify_function}#{send_document_function}
     """
   end
 
@@ -640,15 +748,29 @@ defmodule InvaderWeb.CliController do
 
     commands =
       []
-      |> then(fn list -> if has_github, do: ["  invader gh          GitHub CLI commands" | list], else: list end)
-      |> then(fn list -> if has_telegram, do: ["  invader telegram    Telegram commands (human-in-the-loop)" | list], else: list end)
+      |> then(fn list ->
+        if has_github, do: ["  invader gh          GitHub CLI commands" | list], else: list
+      end)
+      |> then(fn list ->
+        if has_telegram,
+          do: ["  invader telegram    Telegram commands (human-in-the-loop)" | list],
+          else: list
+      end)
       |> Enum.reverse()
       |> Enum.join("\n")
 
     help_hints =
       []
-      |> then(fn list -> if has_github, do: ["Run 'invader gh --help' for available GitHub commands." | list], else: list end)
-      |> then(fn list -> if has_telegram, do: ["Run 'invader telegram --help' for Telegram commands." | list], else: list end)
+      |> then(fn list ->
+        if has_github,
+          do: ["Run 'invader gh --help' for available GitHub commands." | list],
+          else: list
+      end)
+      |> then(fn list ->
+        if has_telegram,
+          do: ["Run 'invader telegram --help' for Telegram commands." | list],
+          else: list
+      end)
       |> Enum.reverse()
       |> Enum.join("\n")
 

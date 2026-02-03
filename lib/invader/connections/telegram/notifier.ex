@@ -43,6 +43,41 @@ defmodule Invader.Connections.Telegram.Notifier do
   end
 
   @doc """
+  Send a document to the user via Telegram.
+
+  ## Parameters
+    * `file_binary` - The file content as binary
+    * `filename` - Name for the file
+    * `opts` - Options:
+      * `:caption` - Optional caption for the document (max 1024 chars)
+      * `:content_type` - MIME type (default: "application/octet-stream")
+
+  ## Returns
+    * `{:ok, message}` - The sent message object
+    * `{:error, :not_configured}` - Telegram not connected
+    * `{:error, reason}` - Other errors
+  """
+  @spec send_document(binary(), String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def send_document(file_binary, filename, opts \\ []) do
+    case get_telegram_connection() do
+      {:ok, %{telegram_bot_token: token, telegram_chat_id: chat_id}}
+      when is_binary(token) and is_integer(chat_id) ->
+        client_opts =
+          [filename: filename]
+          |> maybe_add(:caption, opts[:caption])
+          |> maybe_add(:content_type, opts[:content_type])
+
+        Client.send_document(token, chat_id, file_binary, client_opts)
+
+      {:ok, _} ->
+        {:error, :not_configured}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
   Send a blocking prompt and wait for user reply.
 
   Uses Telegram's ForceReply markup to prompt the user to reply,
