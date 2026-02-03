@@ -68,6 +68,7 @@ defmodule Invader.Missions.Mission do
     define :provision_failed, action: :provision_failed
     define :setup_complete, action: :setup_complete
     define :update_waves, action: :update_waves
+    define :update_prompt, action: :update_prompt
   end
 
   actions do
@@ -208,6 +209,21 @@ defmodule Invader.Missions.Mission do
 
         if max_waves < current_wave do
           {:error, field: :max_waves, message: "cannot set max_waves below current wave (#{current_wave})"}
+        else
+          :ok
+        end
+      end
+    end
+
+    update :update_prompt do
+      require_atomic? false
+      accept [:prompt]
+
+      validate fn changeset, _context ->
+        status = Ash.Changeset.get_attribute(changeset, :status)
+
+        if status in [:completed, :failed, :aborted] do
+          {:error, field: :status, message: "cannot update prompt on completed/failed/aborted missions"}
         else
           :ok
         end

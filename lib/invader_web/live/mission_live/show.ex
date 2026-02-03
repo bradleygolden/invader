@@ -26,7 +26,8 @@ defmodule InvaderWeb.MissionLive.Show do
          |> assign(:mission, mission)
          |> assign(:checkpoints, checkpoints)
          |> assign(:expanded_waves, MapSet.new())
-         |> assign(:live_output, "")}
+         |> assign(:live_output, "")
+         |> assign(:editing_prompt, false)}
 
       _ ->
         {:ok,
@@ -239,6 +240,35 @@ defmodule InvaderWeb.MissionLive.Show do
   end
 
   @impl true
+  def handle_event("edit_prompt", _params, socket) do
+    {:noreply, assign(socket, :editing_prompt, true)}
+  end
+
+  @impl true
+  def handle_event("cancel_edit_prompt", _params, socket) do
+    {:noreply, assign(socket, :editing_prompt, false)}
+  end
+
+  @impl true
+  def handle_event("save_prompt", %{"prompt" => prompt}, socket) do
+    mission = socket.assigns.mission
+
+    case Missions.Mission.update_prompt(mission, %{prompt: prompt}) do
+      {:ok, updated} ->
+        updated = Ash.load!(updated, [:sprite, :waves])
+
+        {:noreply,
+         socket
+         |> assign(:mission, updated)
+         |> assign(:editing_prompt, false)
+         |> put_flash(:info, "Prompt updated - will be used on next wave")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to update prompt")}
+    end
+  end
+
+  @impl true
   def handle_event("inject_api_key", %{"api_key" => api_key}, socket) do
     mission = socket.assigns.mission
 
@@ -363,8 +393,55 @@ defmodule InvaderWeb.MissionLive.Show do
           <div class="border border-cyan-800 rounded p-3 bg-cyan-950/20">
             <div class="flex items-center justify-between mb-2">
               <span class="text-cyan-600 text-sm">INLINE PROMPT</span>
+              <div class="flex items-center gap-2">
+                <%= if not @editing_prompt do %>
+                  <button
+                    type="button"
+                    phx-hook="CopyToClipboard"
+                    id="copy-inline-prompt"
+                    data-clipboard-text={@mission.prompt}
+                    class="text-cyan-500 hover:text-cyan-400 text-[10px] border border-cyan-700 px-2 py-1 rounded hover:border-cyan-500"
+                    title="Copy to clipboard"
+                  >
+                    COPY
+                  </button>
+                <% end %>
+                <%= if not @editing_prompt and @mission.status in [:pending, :running, :pausing, :paused, :provisioning, :setup] do %>
+                  <button
+                    phx-click="edit_prompt"
+                    class="text-cyan-500 hover:text-cyan-400 text-[10px] border border-cyan-700 px-2 py-1 rounded hover:border-cyan-500"
+                  >
+                    EDIT
+                  </button>
+                <% end %>
+              </div>
             </div>
-            <pre class="text-cyan-400 text-xs whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">{@mission.prompt}</pre>
+            <%= if @editing_prompt do %>
+              <form phx-submit="save_prompt" class="space-y-2">
+                <textarea
+                  name="prompt"
+                  rows="8"
+                  class="w-full bg-black border border-cyan-700 text-cyan-400 text-xs p-2 font-mono focus:border-cyan-400 focus:outline-none resize-y"
+                >{@mission.prompt}</textarea>
+                <div class="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    phx-click="cancel_edit_prompt"
+                    class="text-cyan-600 hover:text-cyan-400 text-[10px] border border-cyan-800 px-3 py-1 rounded hover:border-cyan-600"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    type="submit"
+                    class="text-green-400 hover:text-green-300 text-[10px] border border-green-700 px-3 py-1 rounded hover:border-green-500"
+                  >
+                    SAVE
+                  </button>
+                </div>
+              </form>
+            <% else %>
+              <pre class="text-cyan-400 text-xs whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">{@mission.prompt}</pre>
+            <% end %>
           </div>
         <% end %>
 
