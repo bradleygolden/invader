@@ -98,6 +98,147 @@ defmodule InvaderWeb.ProxyController do
     end
   end
 
+  @doc """
+  Execute a Telegram ask command.
+
+  ## Request body
+
+      {
+        "action": "telegram",
+        "input": {
+          "operation": "ask",
+          "message": "Deploy to production?",
+          "timeout": 300000  // optional, milliseconds (default 5 min)
+        }
+      }
+
+  ## Response
+
+  On success:
+
+      {"response": "yes"}
+
+  On timeout:
+
+      {"error": "timeout"}
+
+  On error:
+
+      {"error": "..."}
+  """
+  def run(conn, %{"action" => "telegram", "input" => input}) do
+    alias Invader.Connections.Telegram.Notifier
+    alias Invader.Scopes.Parsers.Telegram, as: TelegramParser
+
+    case verify_sprite_token(conn) do
+      {:ok, claims} ->
+        operation = input["operation"]
+        message = input["message"]
+        timeout = input["timeout"]
+        mission_id = claims[:mission_id]
+
+        # Check scope permission for Telegram operations
+        case check_telegram_scope_permission(claims, operation) do
+          :ok ->
+            execute_telegram_operation(conn, operation, message, timeout, mission_id)
+
+          {:error, :forbidden, scope} ->
+            conn
+            |> put_status(403)
+            |> json(%{
+              error: "Permission denied",
+              message: "This mission does not have permission for scope: #{scope}",
+              scope: scope
+            })
+        end
+
+      {:error, :invalid_token} ->
+        conn
+        |> put_status(401)
+        |> json(%{error: "Invalid or expired token"})
+    end
+  end
+
+  defp execute_telegram_operation(conn, operation, message, timeout, mission_id) do
+    alias Invader.Connections.Telegram.Notifier
+
+    case operation do
+      "ask" when is_binary(message) ->
+        opts = if mission_id, do: [mission_id: mission_id], else: []
+        opts = if timeout, do: Keyword.put(opts, :timeout, timeout), else: opts
+
+        case Notifier.ask(message, opts) do
+          {:ok, response} ->
+            json(conn, %{response: response})
+
+          {:error, :timeout} ->
+            conn
+            |> put_status(408)
+            |> json(%{error: "timeout", message: "No response received within timeout"})
+
+          {:error, :not_configured} ->
+            conn
+            |> put_status(503)
+            |> json(%{error: "not_configured", message: "Telegram not connected"})
+
+          {:error, reason} ->
+            conn
+            |> put_status(500)
+            |> json(%{error: inspect(reason)})
+        end
+
+      "notify" when is_binary(message) ->
+        case Notifier.notify(message) do
+          {:ok, _job} ->
+            json(conn, %{status: "queued"})
+
+          {:error, reason} ->
+            conn
+            |> put_status(500)
+            |> json(%{error: inspect(reason)})
+        end
+
+      _ ->
+        conn
+        |> put_status(400)
+        |> json(%{error: "Invalid operation. Use 'ask' or 'notify' with a message"})
+    end
+  end
+
+  defp check_telegram_scope_permission(claims, operation) do
+    alias Invader.Scopes.Parsers.Telegram, as: TelegramParser
+
+    mission_id = claims[:mission_id]
+
+    # If no mission_id in token, allow (backward compatibility)
+    if is_nil(mission_id) do
+      :ok
+    else
+      case Mission.get(mission_id) do
+        {:ok, mission} ->
+          # Load scope_preset if needed
+          mission = Ash.load!(mission, :scope_preset)
+
+          case TelegramParser.parse_operation(operation) do
+            {:ok, scope} ->
+              if Checker.allowed?(mission, scope) do
+                :ok
+              else
+                {:error, :forbidden, scope}
+              end
+
+            {:error, :no_operation} ->
+              # No operation specified, allow (will show error later)
+              :ok
+          end
+
+        {:error, _} ->
+          # Mission not found, allow (backward compatibility)
+          :ok
+      end
+    end
+  end
+
   def run(conn, %{"action" => action}) do
     conn
     |> put_status(400)
