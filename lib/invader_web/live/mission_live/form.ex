@@ -533,6 +533,13 @@ defmodule InvaderWeb.MissionLive.Form do
     {:noreply, assign(socket, :sprite_lifecycle, String.to_existing_atom(lifecycle))}
   end
 
+  def handle_event("change_sprite_lifecycle", params, socket) do
+    # Handle case where params might come with different structure
+    lifecycle = params["sprite_lifecycle"] || socket.assigns.sprite_lifecycle
+    lifecycle = if is_binary(lifecycle), do: String.to_existing_atom(lifecycle), else: lifecycle
+    {:noreply, assign(socket, :sprite_lifecycle, lifecycle)}
+  end
+
   @impl true
   def handle_event("update_agent_api_key", %{"agent_api_key" => key}, socket) do
     {:noreply, assign(socket, :agent_api_key, key)}
@@ -934,7 +941,7 @@ defmodule InvaderWeb.MissionLive.Form do
 
           <div :if={@action == :edit} class="py-2 border-b border-cyan-800">
             <span class="text-cyan-500 text-[10px]">SPRITE</span>
-            <div class="text-white mt-1">{@mission.sprite.name}</div>
+            <div class="text-white mt-1">{@mission.sprite_name}</div>
           </div>
           
     <!-- Loadout Quick Load -->

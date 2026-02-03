@@ -273,7 +273,7 @@ defmodule InvaderWeb.MissionLive.Show do
     mission = socket.assigns.mission
 
     if api_key && api_key != "" do
-      case Cli.inject_agent_config(mission.sprite.name, mission.agent_provider, api_key) do
+      case Cli.inject_agent_config(mission.sprite_name, mission.agent_provider, api_key) do
         {:ok, _} ->
           {:noreply, put_flash(socket, :info, "API key injected successfully")}
 
@@ -331,7 +331,7 @@ defmodule InvaderWeb.MissionLive.Show do
           <div>
             <span class="text-cyan-600">SPRITE</span>
             <div class="text-cyan-400">
-              {(@mission.sprite && @mission.sprite.name) || @mission.sprite_name}
+              {@mission.sprite_name}
               <%= if @mission.status == :provisioning do %>
                 <span class="text-orange-400 text-[8px] ml-2 animate-pulse">PROVISIONING...</span>
               <% end %>
@@ -474,16 +474,16 @@ defmodule InvaderWeb.MissionLive.Show do
               Your sprite is ready. Configure the coding agent before starting the mission.
             </p>
 
-            <div class="space-y-3">
+            <div :if={@mission.sprite} class="space-y-3">
               <div class="text-cyan-500 text-[10px]">OPTION 1: MANUAL LOGIN (RECOMMENDED)</div>
               <div class="bg-black p-3 rounded border border-cyan-900 flex items-center justify-between gap-2">
                 <code class="text-cyan-400 text-xs font-mono">
-                  sprite console -o {@mission.sprite.org} -s {@mission.sprite.name}
+                  sprite console -o {@mission.sprite.org} -s {@mission.sprite_name}
                 </code>
                 <button
                   phx-hook="CopyToClipboard"
                   id={"copy-console-cmd-#{@mission.id}"}
-                  data-clipboard-text={"sprite console -o #{@mission.sprite.org} -s #{@mission.sprite.name}"}
+                  data-clipboard-text={"sprite console -o #{@mission.sprite.org} -s #{@mission.sprite_name}"}
                   class="text-cyan-500 hover:text-cyan-400 text-[10px] border border-cyan-700 px-2 py-1 rounded hover:border-cyan-500"
                   title="Copy to clipboard"
                 >

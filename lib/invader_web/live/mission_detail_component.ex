@@ -12,7 +12,7 @@ defmodule InvaderWeb.MissionDetailComponent do
       <div class="grid grid-cols-2 gap-4 text-sm">
         <div>
           <span class="text-green-600">SPRITE</span>
-          <div class="text-green-400">{@mission.sprite.name}</div>
+          <div class="text-green-400">{@mission.sprite_name}</div>
         </div>
         <div>
           <span class="text-green-600">STATUS</span>

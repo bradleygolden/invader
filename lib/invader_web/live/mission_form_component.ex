@@ -46,7 +46,7 @@ defmodule InvaderWeb.MissionFormComponent do
 
         <div :if={@action == :edit} class="py-2 border-b border-cyan-800">
           <span class="text-cyan-500 text-[10px]">SPRITE</span>
-          <div class="text-white mt-1">{@mission.sprite.name}</div>
+          <div class="text-white mt-1">{@mission.sprite_name}</div>
         </div>
         
     <!-- Loadout Quick Load -->
