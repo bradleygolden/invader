@@ -5,6 +5,7 @@ defmodule InvaderWeb.ScopeComponents do
   use Phoenix.Component
 
   alias Invader.Scopes.Parsers.GitHub
+  alias Invader.Scopes.Parsers.Telegram
 
   @doc """
   Renders a dropdown select for scope presets.
@@ -129,7 +130,7 @@ defmodule InvaderWeb.ScopeComponents do
         <pre class="whitespace-pre-wrap">{@help_text}</pre>
       </div>
       <p class="text-cyan-700 text-[8px]">
-        This is what the sprite will see when running `invader gh --help`
+        This is what the sprite will see when running `invader --help`
       </p>
     </div>
     """
@@ -170,7 +171,7 @@ defmodule InvaderWeb.ScopeComponents do
 
   defp generate_preview_text(scopes) when scopes in [nil, []] do
     """
-    GitHub CLI Commands
+    Invader CLI Commands
 
     No commands configured. Select scopes above or choose a preset.
     """
@@ -178,54 +179,91 @@ defmodule InvaderWeb.ScopeComponents do
 
   defp generate_preview_text(["*"]) do
     """
-    GitHub CLI Commands
+    Invader CLI Commands
 
-    Usage: invader gh <command> [args...]
+    Usage: invader <command> [args...]
 
-    Available commands:
+    GitHub Commands (invader gh):
       pr          Work with pull requests
       issue       Work with issues
       repo        Work with repositories
-      release     Work with releases
-      workflow    Work with workflows
-      run         Work with workflow runs
+
+    Telegram Commands (invader telegram):
+      ask         Send a blocking prompt and wait for reply
+      notify      Send a fire-and-forget notification
 
     (Full access - all commands available)
     """
   end
 
   defp generate_preview_text(scopes) do
-    allowed = GitHub.filter_scopes(scopes)
-    grouped = GitHub.group_by_category(allowed)
+    github_allowed = GitHub.filter_scopes(scopes)
+    github_grouped = GitHub.group_by_category(github_allowed)
+    telegram_allowed = Telegram.filter_scopes(scopes)
 
-    if map_size(allowed) == 0 do
-      """
-      GitHub CLI Commands
+    has_github = map_size(github_allowed) > 0
+    has_telegram = map_size(telegram_allowed) > 0
 
-      No GitHub commands available with current scopes.
-      """
-    else
-      categories =
-        grouped
-        |> Enum.sort_by(fn {cat, _} -> cat end)
-        |> Enum.map(fn {cat, cat_scopes} ->
-          actions =
-            cat_scopes
-            |> Enum.map(fn {scope, _} -> extract_action(scope) end)
-            |> Enum.join(", ")
+    cond do
+      not has_github and not has_telegram ->
+        """
+        Invader CLI Commands
 
-          "  #{cat}: #{actions}"
-        end)
-        |> Enum.join("\n")
+        No commands available with current scopes.
+        """
 
-      """
-      GitHub CLI Commands
+      true ->
+        github_section = build_github_section(github_grouped, has_github)
+        telegram_section = build_telegram_section(telegram_allowed, has_telegram)
 
-      Usage: invader gh <command> [args...]
+        """
+        Invader CLI Commands
 
-      Available:
-      #{categories}
-      """
+        Usage: invader <command> [args...]
+        #{github_section}#{telegram_section}
+        """
     end
+  end
+
+  defp build_github_section(_grouped, false), do: ""
+
+  defp build_github_section(grouped, true) do
+    categories =
+      grouped
+      |> Enum.sort_by(fn {cat, _} -> cat end)
+      |> Enum.map(fn {cat, cat_scopes} ->
+        actions =
+          cat_scopes
+          |> Enum.map(fn {scope, _} -> extract_action(scope) end)
+          |> Enum.join(", ")
+
+        "  #{cat}: #{actions}"
+      end)
+      |> Enum.join("\n")
+
+    """
+
+    GitHub Commands (invader gh):
+    #{categories}
+    """
+  end
+
+  defp build_telegram_section(_allowed, false), do: ""
+
+  defp build_telegram_section(allowed, true) do
+    actions =
+      allowed
+      |> Enum.map(fn {scope, info} ->
+        action = extract_action(scope)
+        "  #{action}: #{info.description}"
+      end)
+      |> Enum.sort()
+      |> Enum.join("\n")
+
+    """
+
+    Telegram Commands (invader telegram):
+    #{actions}
+    """
   end
 end

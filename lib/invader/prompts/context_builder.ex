@@ -8,6 +8,7 @@ defmodule Invader.Prompts.ContextBuilder do
 
   alias Invader.Scopes.Checker
   alias Invader.Scopes.Parsers.GitHub
+  alias Invader.Scopes.Parsers.Telegram
 
   @doc """
   Builds a CLI capabilities context block for a mission.
@@ -18,14 +19,15 @@ defmodule Invader.Prompts.ContextBuilder do
     mission = Ash.load!(mission, :scope_preset)
     scopes = Checker.get_effective_scopes(mission)
 
-    commands = build_command_list(scopes)
+    github_commands = build_github_commands(scopes)
+    telegram_commands = build_telegram_commands(scopes)
     context_section = build_context_section(mission, bindings)
 
     """
     <cli_capabilities>
-    You have access to the Invader CLI for GitHub operations.
+    You have access to the Invader CLI for various operations.
 
-    #{commands}
+    #{github_commands}#{telegram_commands}
     #{context_section}
     </cli_capabilities>
 
@@ -38,20 +40,22 @@ defmodule Invader.Prompts.ContextBuilder do
   Builds just the available commands section without the full context wrapper.
   """
   def build_commands_only(scopes) do
-    build_command_list(scopes)
+    github = build_github_commands(scopes)
+    telegram = build_telegram_commands(scopes)
+    "#{github}#{telegram}"
   end
 
-  defp build_command_list(scopes) do
+  defp build_github_commands(scopes) do
     if scopes == [] or scopes == nil or scopes == ["*"] do
-      build_full_access_commands()
+      build_full_access_github_commands()
     else
-      build_scoped_commands(scopes)
+      build_scoped_github_commands(scopes)
     end
   end
 
-  defp build_full_access_commands do
+  defp build_full_access_github_commands do
     """
-    ## Available Commands
+    ## GitHub Commands
     You have full access to all GitHub CLI commands via `invader gh`.
 
     Common commands:
@@ -67,15 +71,12 @@ defmodule Invader.Prompts.ContextBuilder do
     """
   end
 
-  defp build_scoped_commands(scopes) do
+  defp build_scoped_github_commands(scopes) do
     allowed_scopes = GitHub.filter_scopes(scopes)
     grouped = GitHub.group_by_category(allowed_scopes)
 
     if map_size(allowed_scopes) == 0 do
-      """
-      ## Available Commands
-      No GitHub commands are available for this mission.
-      """
+      ""
     else
       command_sections =
         grouped
@@ -97,11 +98,62 @@ defmodule Invader.Prompts.ContextBuilder do
         |> Enum.join("\n")
 
       """
-      ## Available Commands
-      The following commands are available for this mission:
+      ## GitHub Commands
+      The following GitHub commands are available:
 
       #{command_sections}
-      **Note:** Commands not listed above are not permitted for this mission.
+      """
+    end
+  end
+
+  defp build_telegram_commands(scopes) do
+    if scopes == [] or scopes == nil or scopes == ["*"] do
+      build_full_access_telegram_commands()
+    else
+      build_scoped_telegram_commands(scopes)
+    end
+  end
+
+  defp build_full_access_telegram_commands do
+    """
+    ## Telegram Commands (Human-in-the-Loop)
+    You can interact with the user via Telegram for human-in-the-loop workflows.
+
+    Available commands:
+    - `invader telegram ask "message"` - Send a message and wait for user reply (blocking)
+    - `invader telegram notify "message"` - Send a notification (fire-and-forget)
+
+    Options for 'ask':
+    - `--timeout <ms>` - Timeout in milliseconds (default: 300000 = 5 min)
+
+    Use these commands when you need human input, approval, or want to notify the user of progress.
+    """
+  end
+
+  defp build_scoped_telegram_commands(scopes) do
+    allowed_scopes = Telegram.filter_scopes(scopes)
+
+    if map_size(allowed_scopes) == 0 do
+      ""
+    else
+      commands =
+        allowed_scopes
+        |> Enum.sort_by(fn {scope, _} -> scope end)
+        |> Enum.map(fn {_scope, info} ->
+          "- `#{info.command}` - #{info.description}"
+        end)
+        |> Enum.join("\n")
+
+      """
+      ## Telegram Commands (Human-in-the-Loop)
+      You can interact with the user via Telegram:
+
+      #{commands}
+
+      Options for 'ask':
+      - `--timeout <ms>` - Timeout in milliseconds (default: 300000 = 5 min)
+
+      Use these commands when you need human input, approval, or want to notify the user.
       """
     end
   end
