@@ -35,8 +35,7 @@ defmodule Invader.Accounts.User do
       magic_link do
         identity_field :email
         single_use_token? true
-        # Note: require_interaction? false to avoid CSRF issues with default confirmation page
-        require_interaction? false
+        require_interaction? true
 
         sender fn user_or_email, token, _opts ->
           Invader.Accounts.Emails.send_magic_link(user_or_email, token)
