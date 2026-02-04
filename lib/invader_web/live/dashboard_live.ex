@@ -626,7 +626,7 @@ defmodule InvaderWeb.DashboardLive do
                         <% else %>
                           <span class="text-green-400 mr-2">▸</span>
                         <% end %>
-                        {mission.sprite_name}
+                        {mission.sprite_name || (mission.sprite && mission.sprite.name) || "-"}
                         <%= if mission.status == :paused do %>
                           <span class="text-yellow-500 text-[8px] ml-2">PAUSED</span>
                         <% end %>
@@ -839,7 +839,7 @@ defmodule InvaderWeb.DashboardLive do
                     class="min-w-0 flex-1 cursor-pointer"
                   >
                     <div class={"text-[10px] sm:text-xs #{status_text_class(mission.status)} flex items-center gap-2 truncate"}>
-                      <span class="truncate">{mission.sprite_name}</span>
+                      <span class="truncate">{mission.sprite_name || (mission.sprite && mission.sprite.name) || "-"}</span>
                       <%= if mission.schedule_enabled do %>
                         <span
                           class="text-[8px] text-fuchsia-400 flex-shrink-0"
