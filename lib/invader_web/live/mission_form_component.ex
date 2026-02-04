@@ -461,11 +461,25 @@ defmodule InvaderWeb.MissionFormComponent do
                 <% end %>
               </div>
               
-    <!-- Selected scopes display -->
-              <div :if={@selected_scopes != []} class="flex flex-wrap gap-1">
+    <!-- Selected scopes display with approval toggles -->
+              <div :if={@selected_scopes != []} class="space-y-1">
                 <%= for scope <- @selected_scopes do %>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[8px] bg-cyan-900/50 border border-cyan-700 text-cyan-400">
-                    {scope}
+                  <div class="flex items-center justify-between gap-2 px-2 py-1 text-[8px] bg-cyan-900/50 border border-cyan-700">
+                    <span class="text-cyan-400 flex-1">{scope}</span>
+                    <button
+                      type="button"
+                      phx-click="toggle_approval_scope"
+                      phx-value-scope={scope}
+                      phx-target={@myself}
+                      class={"arcade-btn text-[7px] py-0.5 px-1.5 #{if scope in @approval_scopes, do: "border-amber-500 text-amber-400 bg-amber-900/30", else: "border-cyan-800 text-cyan-600"}"}
+                      title={
+                        if scope in @approval_scopes,
+                          do: "Requires approval",
+                          else: "Click to require approval"
+                      }
+                    >
+                      {if scope in @approval_scopes, do: "🔒 APPROVE", else: "ALLOW"}
+                    </button>
                     <button
                       type="button"
                       phx-click="remove_scope"
@@ -475,7 +489,7 @@ defmodule InvaderWeb.MissionFormComponent do
                     >
                       x
                     </button>
-                  </span>
+                  </div>
                 <% end %>
               </div>
               
@@ -577,13 +591,14 @@ defmodule InvaderWeb.MissionFormComponent do
     # Load scope presets and initialize scope state
     scope_presets = ScopePreset.list!()
 
-    {scope_preset_id, selected_scopes} =
+    {scope_preset_id, selected_scopes, approval_scopes} =
       if action == :new do
-        {nil, []}
+        {nil, [], []}
       else
         {
           mission.scope_preset_id,
-          mission.scopes || []
+          mission.scopes || [],
+          mission.approval_scopes || []
         }
       end
 
@@ -601,6 +616,7 @@ defmodule InvaderWeb.MissionFormComponent do
      |> assign(:scope_presets, scope_presets)
      |> assign(:scope_preset_id, scope_preset_id)
      |> assign(:selected_scopes, selected_scopes)
+     |> assign(:approval_scopes, approval_scopes)
      |> assign(:show_scope_editor, false)
      |> assign(:form, to_form(form))}
   end
@@ -776,7 +792,12 @@ defmodule InvaderWeb.MissionFormComponent do
 
   def handle_event("remove_scope", %{"scope" => scope}, socket) do
     new_scopes = Enum.reject(socket.assigns.selected_scopes, &(&1 == scope))
-    {:noreply, assign(socket, :selected_scopes, new_scopes)}
+    new_approval_scopes = Enum.reject(socket.assigns.approval_scopes || [], &(&1 == scope))
+
+    {:noreply,
+     socket
+     |> assign(:selected_scopes, new_scopes)
+     |> assign(:approval_scopes, new_approval_scopes)}
   end
 
   def handle_event("set_full_access", _params, socket) do
@@ -784,7 +805,23 @@ defmodule InvaderWeb.MissionFormComponent do
   end
 
   def handle_event("clear_scopes", _params, socket) do
-    {:noreply, assign(socket, :selected_scopes, [])}
+    {:noreply,
+     socket
+     |> assign(:selected_scopes, [])
+     |> assign(:approval_scopes, [])}
+  end
+
+  def handle_event("toggle_approval_scope", %{"scope" => scope}, socket) do
+    current_approval_scopes = socket.assigns.approval_scopes || []
+
+    new_approval_scopes =
+      if scope in current_approval_scopes do
+        Enum.reject(current_approval_scopes, &(&1 == scope))
+      else
+        [scope | current_approval_scopes]
+      end
+
+    {:noreply, assign(socket, :approval_scopes, new_approval_scopes)}
   end
 
   defp notify_parent(msg), do: send(self(), {__MODULE__, msg})
@@ -803,6 +840,7 @@ defmodule InvaderWeb.MissionFormComponent do
     params
     |> Map.put("scope_preset_id", assigns.scope_preset_id)
     |> Map.put("scopes", assigns.selected_scopes)
+    |> Map.put("approval_scopes", assigns.approval_scopes)
   end
 
   defp convert_12h_to_24h(params) do

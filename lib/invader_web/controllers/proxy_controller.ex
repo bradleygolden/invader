@@ -5,6 +5,7 @@ defmodule InvaderWeb.ProxyController do
   """
   use InvaderWeb, :controller
 
+  alias Invader.Approvals.Enforcer
   alias Invader.Connections.Connection
   alias Invader.Connections.GitHub.Executor
   alias Invader.Missions.Mission
@@ -51,37 +52,14 @@ defmodule InvaderWeb.ProxyController do
 
         # Check scope permissions if mission_id is present in token
         case check_scope_permission(claims, args) do
+          {:ok, scope, mission} ->
+            with_approval(conn, mission, scope, "gh", %{"args" => args}, fn ->
+              execute_gh_command(conn, connection_id, args, mode, sprite_id)
+            end)
+
           :ok ->
-            case get_connection(connection_id) do
-              {:ok, connection} ->
-                opts = [sprite_id: sprite_id]
-                opts = if mode, do: Keyword.put(opts, :mode, mode), else: opts
-
-                case Executor.execute(connection, args, opts) do
-                  {:ok, result} ->
-                    json(conn, result)
-
-                  {:error, %{exit_code: code, output: output}} ->
-                    conn
-                    |> put_status(400)
-                    |> json(%{error: "Command failed", exit_code: code, output: output})
-
-                  {:error, reason} when is_binary(reason) ->
-                    conn
-                    |> put_status(400)
-                    |> json(%{error: reason})
-
-                  {:error, reason} ->
-                    conn
-                    |> put_status(400)
-                    |> json(%{error: inspect(reason)})
-                end
-
-              {:error, :not_found} ->
-                conn
-                |> put_status(404)
-                |> json(%{error: "No GitHub connection configured"})
-            end
+            # No mission context, proceed without approval check
+            execute_gh_command(conn, connection_id, args, mode, sprite_id)
 
           {:error, :forbidden, scope} ->
             conn
@@ -110,7 +88,13 @@ defmodule InvaderWeb.ProxyController do
 
         # Check scope permission for Telegram operations
         case check_telegram_scope_permission(claims, operation) do
+          {:ok, scope, mission} ->
+            with_approval(conn, mission, scope, "telegram", %{"operation" => operation, "input" => input}, fn ->
+              execute_telegram_operation(conn, operation, input, mission_id)
+            end)
+
           :ok ->
+            # No mission context, proceed without approval check
             execute_telegram_operation(conn, operation, input, mission_id)
 
           {:error, :forbidden, scope} ->
@@ -246,7 +230,8 @@ defmodule InvaderWeb.ProxyController do
           case TelegramParser.parse_operation(operation) do
             {:ok, scope} ->
               if Checker.allowed?(mission, scope) do
-                :ok
+                # Return scope and mission for approval check
+                {:ok, scope, mission}
               else
                 {:error, :forbidden, scope}
               end
@@ -308,7 +293,8 @@ defmodule InvaderWeb.ProxyController do
           case GitHubParser.parse_args(args) do
             {:ok, scope} ->
               if Checker.allowed?(mission, scope) do
-                :ok
+                # Return scope and mission for approval check
+                {:ok, scope, mission}
               else
                 {:error, :forbidden, scope}
               end
@@ -322,6 +308,87 @@ defmodule InvaderWeb.ProxyController do
           # Mission not found, allow (backward compatibility)
           :ok
       end
+    end
+  end
+
+  defp execute_gh_command(conn, connection_id, args, mode, sprite_id) do
+    case get_connection(connection_id) do
+      {:ok, connection} ->
+        opts = [sprite_id: sprite_id]
+        opts = if mode, do: Keyword.put(opts, :mode, mode), else: opts
+
+        case Executor.execute(connection, args, opts) do
+          {:ok, result} ->
+            json(conn, result)
+
+          {:error, %{exit_code: code, output: output}} ->
+            conn
+            |> put_status(400)
+            |> json(%{error: "Command failed", exit_code: code, output: output})
+
+          {:error, reason} when is_binary(reason) ->
+            conn
+            |> put_status(400)
+            |> json(%{error: reason})
+
+          {:error, reason} ->
+            conn
+            |> put_status(400)
+            |> json(%{error: inspect(reason)})
+        end
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(404)
+        |> json(%{error: "No GitHub connection configured"})
+    end
+  end
+
+  defp check_approval(nil, _scope, _action_type, _action_details), do: :ok
+
+  defp check_approval(mission, scope, action_type, action_details) do
+    Enforcer.check_and_wait(mission, scope, action_type, action_details)
+  end
+
+  # Helper to handle approval check results and execute action on success
+  defp with_approval(conn, mission, scope, action_type, action_details, on_success) do
+    case check_approval(mission, scope, action_type, action_details) do
+      :ok ->
+        on_success.()
+
+      {:approved, _decided_by} ->
+        on_success.()
+
+      {:denied, decided_by} ->
+        conn
+        |> put_status(403)
+        |> json(%{
+          error: "Action denied",
+          message: "Action was denied by #{decided_by}",
+          scope: scope
+        })
+
+      {:error, :timeout} ->
+        conn
+        |> put_status(408)
+        |> json(%{
+          error: "Approval timeout",
+          message: "No approval decision was made within the timeout period",
+          scope: scope
+        })
+
+      {:error, :not_configured} ->
+        conn
+        |> put_status(503)
+        |> json(%{
+          error: "Telegram not configured",
+          message: "Approval required but Telegram is not configured"
+        })
+
+      {:error, reason} ->
+        conn
+        |> put_status(500)
+        |> json(%{error: "Approval error", message: inspect(reason)})
     end
   end
 end

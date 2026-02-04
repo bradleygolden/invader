@@ -97,6 +97,7 @@ defmodule Invader.Missions.Mission do
         :schedule_days,
         :next_run_at,
         :scopes,
+        :approval_scopes,
         :scope_preset_id,
         :agent_type,
         :agent_provider,
@@ -145,6 +146,7 @@ defmodule Invader.Missions.Mission do
         :schedule_days,
         :next_run_at,
         :scopes,
+        :approval_scopes,
         :scope_preset_id
       ]
 
@@ -275,6 +277,7 @@ defmodule Invader.Missions.Mission do
         :schedule_days,
         :next_run_at,
         :scopes,
+        :approval_scopes,
         :scope_preset_id,
         :sprite_name,
         :sprite_lifecycle,
@@ -558,6 +561,12 @@ defmodule Invader.Missions.Mission do
       public? true
 
       description "Array of scope strings for CLI access control (e.g., ['github:pr:*', 'github:issue:view'])"
+    end
+
+    attribute :approval_scopes, {:array, :string} do
+      default []
+      public? true
+      description "Scopes that require human approval before execution (subset of scopes)"
     end
 
     # Sprite provisioning attributes

@@ -68,7 +68,8 @@ config :invader,
     Invader.Connections,
     Invader.Accounts,
     Invader.Scopes,
-    Invader.Credentials
+    Invader.Credentials,
+    Invader.Approvals
   ]
 
 # Configure the endpoint

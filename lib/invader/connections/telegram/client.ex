@@ -53,6 +53,38 @@ defmodule Invader.Connections.Telegram.Client do
   end
 
   @doc """
+  Answer a callback query from an inline keyboard button.
+
+  This acknowledges the button press and optionally shows a notification.
+
+  ## Options
+    * `:text` - Text to show in a notification (optional)
+    * `:show_alert` - If true, shows an alert instead of a toast (default: false)
+  """
+  def answer_callback_query(token, callback_query_id, opts \\ []) do
+    body =
+      %{callback_query_id: callback_query_id}
+      |> maybe_add(:text, opts[:text])
+      |> maybe_add(:show_alert, opts[:show_alert])
+
+    post(token, "answerCallbackQuery", body)
+  end
+
+  @doc """
+  Edit the text of an existing message.
+
+  Used to update approval messages after a decision is made.
+  """
+  def edit_message_text(token, chat_id, message_id, text, opts \\ []) do
+    body =
+      %{chat_id: chat_id, message_id: message_id, text: text}
+      |> maybe_add(:parse_mode, opts[:parse_mode])
+      |> maybe_add(:reply_markup, opts[:reply_markup])
+
+    post(token, "editMessageText", body)
+  end
+
+  @doc """
   Send a document to a chat.
 
   ## Parameters
