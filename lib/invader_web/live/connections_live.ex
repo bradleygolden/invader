@@ -600,7 +600,9 @@ defmodule InvaderWeb.ConnectionsLive do
     </div>
 
     <div class="space-y-2">
-      <label class="text-cyan-500 text-[10px] block">INSTALLATION ID</label>
+      <label class="text-cyan-500 text-[10px] block">
+        INSTALLATION ID <span class="text-cyan-700">(optional)</span>
+      </label>
       <input
         type="text"
         name={@form[:installation_id].name}
@@ -608,7 +610,10 @@ defmodule InvaderWeb.ConnectionsLive do
         placeholder="12345678"
         class="w-full bg-black border-2 border-cyan-700 text-white p-3 focus:border-cyan-400 focus:outline-none"
       />
-      <div class="text-cyan-700 text-[8px]">Find in URL: github.com/settings/installations/XXXXX</div>
+      <div class="text-cyan-700 text-[8px]">
+        Optional for multi-org: installation is auto-resolved from --repo flag.
+        Only needed for commands without --repo (e.g., gh repo list).
+      </div>
     </div>
 
     <div class="space-y-2">

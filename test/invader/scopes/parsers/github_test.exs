@@ -3,6 +3,47 @@ defmodule Invader.Scopes.Parsers.GitHubTest do
 
   alias Invader.Scopes.Parsers.GitHub
 
+  describe "extract_repo/1" do
+    test "extracts repo from --repo flag" do
+      assert {:ok, {"owner", "repo"}} =
+               GitHub.extract_repo(["pr", "list", "--repo", "owner/repo"])
+    end
+
+    test "extracts repo from -R flag" do
+      assert {:ok, {"myorg", "myrepo"}} =
+               GitHub.extract_repo(["pr", "list", "-R", "myorg/myrepo"])
+    end
+
+    test "returns :error when no repo flag present" do
+      assert :error = GitHub.extract_repo(["pr", "list"])
+    end
+
+    test "returns :error for empty args" do
+      assert :error = GitHub.extract_repo([])
+    end
+
+    test "extracts repo with flags before and after" do
+      args = ["pr", "list", "--state", "open", "--repo", "org/project", "--limit", "10"]
+      assert {:ok, {"org", "project"}} = GitHub.extract_repo(args)
+    end
+
+    test "handles repo with hyphens and underscores" do
+      assert {:ok, {"my-org", "my_repo"}} = GitHub.extract_repo(["--repo", "my-org/my_repo"])
+    end
+
+    test "returns :error for malformed repo without slash" do
+      assert :error = GitHub.extract_repo(["--repo", "noslash"])
+    end
+
+    test "returns :error for repo with empty owner" do
+      assert :error = GitHub.extract_repo(["--repo", "/repo"])
+    end
+
+    test "returns :error for repo with empty name" do
+      assert :error = GitHub.extract_repo(["--repo", "owner/"])
+    end
+  end
+
   describe "parse_args/1" do
     test "parses simple pr list command" do
       assert {:ok, "github:pr:list"} = GitHub.parse_args(["pr", "list"])

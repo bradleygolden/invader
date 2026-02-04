@@ -17,6 +17,8 @@ defmodule Invader.Application do
       {Registry, keys: :unique, name: Invader.MissionRegistry},
       # Telegram registration code store
       Invader.Connections.Telegram.RegistrationStore,
+      # GitHub installation ID cache for multi-org support
+      Invader.Connections.GitHub.InstallationResolver,
       {DNSCluster, query: Application.get_env(:invader, :dns_cluster_query) || :ignore},
       {Oban,
        AshOban.config(

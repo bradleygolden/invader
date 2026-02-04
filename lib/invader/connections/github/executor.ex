@@ -15,20 +15,24 @@ defmodule Invader.Connections.GitHub.Executor do
   be explicitly specified.
   """
 
+  alias Invader.Connections.GitHub.InstallationResolver
   alias Invader.Connections.GitHub.TokenGenerator
   alias Invader.Connections.Request
+  alias Invader.Scopes.Parsers.GitHub, as: GitHubParser
 
   @stateful_commands ~w(clone checkout push pull fetch)
+
+  require Logger
 
   @doc """
   List repositories accessible via the GitHub connection.
 
-  Returns a list of repos with owner, name, and description.
+  Uses the GitHub API to list repos from ALL installations where the app is installed.
+  This allows multi-org support without requiring a pre-configured installation_id.
 
   ## Options
 
-  - `:limit` - Maximum number of repos to fetch (default: 100)
-  - `:sprite_id` - ID of the sprite making the request (for audit trail)
+  - `:limit` - Maximum number of repos to return (default: 100)
 
   ## Returns
 
@@ -37,34 +41,30 @@ defmodule Invader.Connections.GitHub.Executor do
   def list_repos(connection, opts \\ []) do
     limit = opts[:limit] || 100
 
-    case execute(connection, [
-           "repo",
-           "list",
-           "--limit",
-           "#{limit}",
-           "--json",
-           "owner,name,description"
-         ]) do
-      {:ok, %{output: output}} ->
-        repos =
-          output
-          |> Jason.decode!()
-          |> Enum.map(fn repo ->
-            owner = get_in(repo, ["owner", "login"]) || ""
-            name = repo["name"] || ""
+    with {:ok, installations} <- TokenGenerator.list_installations(connection) do
+      repos =
+        installations
+        |> Task.async_stream(
+          fn inst ->
+            case TokenGenerator.list_installation_repos(connection, inst.id) do
+              {:ok, repos} -> repos
+              {:error, reason} ->
+                Logger.warning("Failed to list repos for installation #{inst.id}: #{inspect(reason)}")
+                []
+            end
+          end,
+          timeout: 30_000,
+          on_timeout: :kill_task
+        )
+        |> Enum.flat_map(fn
+          {:ok, repos} -> repos
+          {:exit, _} -> []
+        end)
+        |> Enum.uniq_by(& &1.full_name)
+        |> Enum.sort_by(& &1.full_name)
+        |> Enum.take(limit)
 
-            %{
-              owner: owner,
-              name: name,
-              full_name: "#{owner}/#{name}",
-              description: repo["description"]
-            }
-          end)
-
-        {:ok, repos}
-
-      {:error, reason} ->
-        {:error, reason}
+      {:ok, repos}
     end
   end
 
@@ -97,7 +97,7 @@ defmodule Invader.Connections.GitHub.Executor do
     result =
       case mode do
         :proxy -> execute_proxied(connection, args)
-        :token -> return_token(connection)
+        :token -> return_token(connection, args)
       end
 
     duration_ms = System.monotonic_time(:millisecond) - start_time
@@ -125,7 +125,7 @@ defmodule Invader.Connections.GitHub.Executor do
   end
 
   defp execute_proxied(connection, args) do
-    with {:ok, %{token: token}} <- TokenGenerator.generate_token(connection) do
+    with {:ok, %{token: token}} <- generate_token_for_args(connection, args) do
       command = "gh #{Enum.join(args, " ")}"
       env = [{"GH_TOKEN", token}]
 
@@ -139,13 +139,32 @@ defmodule Invader.Connections.GitHub.Executor do
     end
   end
 
-  defp return_token(connection) do
-    case TokenGenerator.generate_token(connection) do
+  defp return_token(connection, args) do
+    case generate_token_for_args(connection, args) do
       {:ok, %{token: token, expires_at: expires_at}} ->
         {:ok, %{mode: :token, token: token, expires_at: expires_at}}
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # Generate token using dynamic installation lookup if repo is specified in args
+  defp generate_token_for_args(connection, args) do
+    case GitHubParser.extract_repo(args) do
+      {:ok, {owner, _repo}} ->
+        # Resolve installation_id for this owner
+        with {:ok, installation_id} <- InstallationResolver.resolve(connection, owner) do
+          TokenGenerator.generate_token(connection, installation_id)
+        end
+
+      :error ->
+        # No repo specified, use default installation_id (if configured)
+        if connection.installation_id do
+          TokenGenerator.generate_token(connection)
+        else
+          {:error, "No --repo flag provided and no default installation_id configured"}
+        end
     end
   end
 

@@ -7,6 +7,39 @@ defmodule Invader.Scopes.Parsers.GitHub do
   """
 
   @doc """
+  Extracts the owner/repo from gh CLI arguments.
+
+  Looks for --repo or -R flags followed by owner/repo format.
+
+  ## Examples
+
+      iex> GitHub.extract_repo(["pr", "list", "--repo", "owner/repo"])
+      {:ok, {"owner", "repo"}}
+
+      iex> GitHub.extract_repo(["pr", "list", "-R", "myorg/myrepo"])
+      {:ok, {"myorg", "myrepo"}}
+
+      iex> GitHub.extract_repo(["pr", "list"])
+      :error
+  """
+  def extract_repo(args) do
+    args
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.find_value(:error, fn
+      ["--repo", repo] -> parse_owner_repo(repo)
+      ["-R", repo] -> parse_owner_repo(repo)
+      _ -> nil
+    end)
+  end
+
+  defp parse_owner_repo(repo) when is_binary(repo) do
+    case String.split(repo, "/", parts: 2) do
+      [owner, name] when owner != "" and name != "" -> {:ok, {owner, name}}
+      _ -> nil
+    end
+  end
+
+  @doc """
   Parses gh CLI args into a scope string.
 
   ## Examples
