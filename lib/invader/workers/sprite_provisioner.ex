@@ -29,7 +29,7 @@ defmodule Invader.Workers.SpriteProvisioner do
          {:ok, sprite_record} <- create_sprite_record(mission),
          {:ok, updated_mission} <- link_sprite_to_mission(mission, sprite_record),
          :ok <- inject_agent_config(updated_mission),
-         {:ok, _mission} <- complete_setup(updated_mission) do
+         {:ok, _mission} <- maybe_complete_setup(updated_mission) do
       Logger.info(
         "Sprite #{mission.sprite_name} provisioned and configured for mission #{mission_id}"
       )
@@ -152,9 +152,24 @@ defmodule Invader.Workers.SpriteProvisioner do
     end
   end
 
-  defp complete_setup(mission) do
-    Logger.info("Completing setup for mission #{mission.id}")
-    Mission.setup_complete(mission)
+  defp maybe_complete_setup(%Mission{agent_provider: provider} = mission) do
+    alias Invader.Agents.AgentConfig
+
+    provider_config = AgentConfig.get_provider(provider)
+
+    if provider_config && provider_config[:requires_api_key] == false do
+      # Subscription providers don't have API keys injected, so leave in :setup
+      # state - user needs to login via the sprite console manually
+      Logger.info(
+        "Subscription provider #{provider} requires manual login, keeping mission #{mission.id} in setup state"
+      )
+
+      {:ok, mission}
+    else
+      # API key providers have credentials injected, auto-complete setup
+      Logger.info("Completing setup for mission #{mission.id}")
+      Mission.setup_complete(mission)
+    end
   end
 
   defp handle_provision_failure(mission_id, reason) do
